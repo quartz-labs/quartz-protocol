@@ -1020,18 +1020,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
-name = "funds-program"
-version = "0.1.21"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "drift",
- "pyth-solana-receiver-sdk 0.3.2",
- "solana-program",
- "solana-security-txt",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1757,6 +1745,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d464fae65fff2680baf48019211ce37aaec0c78e9264c84a3e484717f965104e"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "quartz"
+version = "0.1.21"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "drift",
+ "pyth-solana-receiver-sdk 0.3.2",
+ "solana-program",
+ "solana-security-txt",
 ]
 
 [[package]]

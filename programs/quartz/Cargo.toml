@@ -1,12 +1,12 @@
 [package]
-name = "funds-program"
+name = "quartz"
 version = "0.1.21"
 description = "Quartz"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "funds_program"
+name = "quartz"
 
 [features]
 default = []

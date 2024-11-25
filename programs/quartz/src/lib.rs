@@ -24,7 +24,7 @@ security_txt! {
 }
 
 #[program]
-pub mod funds_program {
+pub mod quartz {
     use super::*;
 
     // Config
