@@ -18,9 +18,9 @@ security_txt! {
     name: "Quartz",
     project_url: "https://quartzpay.io/",
     contacts: "email:iarla@quartzpay.io",
-    policy: "https://github.com/quartz-labs/quartz-app/blob/main/SECURITY.md",
+    policy: "https://github.com/quartz-labs/quartz-protocol/blob/main/SECURITY.md",
     preferred_languages: "en",
-    source_code: "https://github.com/quartz-labs/quartz-app"
+    source_code: "https://github.com/quartz-labs/quartz-protocol"
 }
 
 #[program]
