@@ -1,15 +1,7 @@
 {
-  "license": "ISC",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "test": "TEST_FILE='**/*.ts' anchor test -- --features 'local'",
-    "test:init_user": "TEST_FILE='init_user_tests.ts' anchor test -- --features 'local'",
-    "test:change_user": "TEST_FILE='change_user_tests.ts' anchor test -- --features 'local'",
-    "test:close_user": "TEST_FILE='close_user_tests.ts' anchor test -- --features 'local'",
-    "test:withdraw_lamports": "TEST_FILE='withdraw_lamports_tests.ts' anchor test -- --features 'local'",
-    "test:withdraw_usdc": "TEST_FILE='withdraw_usdc_tests.ts' anchor test -- --features 'local'",
-    "test:spend_usdc": "TEST_FILE='spend_usdc_tests.ts' anchor test -- --features 'local'"
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
