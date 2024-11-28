@@ -24,10 +24,12 @@ pub struct InitDriftAccount<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    /// CHECK: Left as unchecked as won't be initialized until Drift CPI (which performs the security checks)
+    #[account(mut)]
     pub drift_user: UncheckedAccount<'info>,
     
-    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    /// CHECK: Left as unchecked as won't be initialized until Drift CPI (which performs the security checks)
+    #[account(mut)]
     pub drift_user_stats: UncheckedAccount<'info>,
 
     #[account(
