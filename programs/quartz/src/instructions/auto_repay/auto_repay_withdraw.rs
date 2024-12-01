@@ -23,7 +23,7 @@ use drift::{
 use pyth_solana_receiver_sdk::price_update::{get_feed_id_from_hex, PriceUpdateV2};
 use crate::{
     check, 
-    constants::{AUTO_REPAY_MAX_SLIPPAGE_BPS, AUTO_REPAY_MIN_HEALTH_RESULT, BASE_UNITS_PER_USDC, DRIFT_MARKET_INDEX_SOL, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, MAX_PRICE_AGE_SECONDS_SOL, MAX_PRICE_AGE_SECONDS_USDC, PYTH_FEED_SOL_USD, PYTH_FEED_USDC_USD, WSOL_MINT}, 
+    constants::{AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT, AUTO_REPAY_MAX_SLIPPAGE_BPS, AUTO_REPAY_MIN_HEALTH_RESULT_PERCENT, BASE_UNITS_PER_USDC, DRIFT_MARKET_INDEX_SOL, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, MAX_PRICE_AGE_SECONDS_SOL, MAX_PRICE_AGE_SECONDS_USDC, PYTH_FEED_SOL_USD, PYTH_FEED_USDC_USD, WSOL_MINT}, 
     errors::QuartzError, 
     helpers::get_jup_exact_out_route_out_amount, 
     load_mut, 
@@ -301,8 +301,13 @@ fn validate_account_health<'info>(
     let quartz_account_health = get_quartz_account_health(margin_calculation)?;
 
     check!(
-        quartz_account_health >= AUTO_REPAY_MIN_HEALTH_RESULT,
+        quartz_account_health >= AUTO_REPAY_MIN_HEALTH_RESULT_PERCENT,
         QuartzError::AutoRepayHealthTooLow
+    );
+
+    check!(
+        quartz_account_health <= AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT,
+        QuartzError::AutoRepayHealthTooHigh
     );
 
     Ok(())
