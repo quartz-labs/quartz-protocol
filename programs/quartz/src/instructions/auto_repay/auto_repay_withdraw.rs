@@ -163,6 +163,12 @@ fn validate_user_accounts<'info>(
     deposit_instruction: &Instruction
 ) -> Result<()> {
     // Start instruction
+    let start_caller = start_instruction.accounts[0].pubkey;
+    check!(
+        ctx.accounts.caller.key().eq(&start_caller),
+        QuartzError::InvalidUserAccounts
+    );
+
     let start_owner = start_instruction.accounts[5].pubkey;
     check!(
         ctx.accounts.owner.key().eq(&start_owner),
