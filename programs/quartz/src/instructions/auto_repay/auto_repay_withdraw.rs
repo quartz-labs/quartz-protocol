@@ -399,7 +399,10 @@ pub fn auto_repay_withdraw_handler<'info>(
     );
     token::close_account(cpi_ctx_close)?;
 
-    validate_account_health(&ctx, drift_market_index)?;
+    // Validate account health if the owner isn't the caller
+    if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
+        validate_account_health(&ctx, drift_market_index)?;
+    }
 
     Ok(())
 }

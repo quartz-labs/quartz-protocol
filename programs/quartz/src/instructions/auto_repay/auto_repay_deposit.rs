@@ -208,7 +208,10 @@ pub fn auto_repay_deposit_handler<'info>(
         QuartzError::InvalidDestinationTokenAccount
     );
 
-    validate_account_health(&ctx, drift_market_index)?;
+    // Validate account health if the owner isn't the caller
+    if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
+        validate_account_health(&ctx, drift_market_index)?;
+    }
 
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
