@@ -15,6 +15,7 @@ import { getVault, getVaultSpl, QUARTZ_PROGRAM_ID, RPC_URL, toRemainingAccount, 
 import { DRIFT_MARKET_INDEX_SOL, DRIFT_ORACLE_1, DRIFT_SPOT_MARKET_USDC, getDriftSpotMarketVault, getDriftState, getDriftUser, getDriftUserStats } from "../../utils/drift";
 import { DRIFT_SPOT_MARKET_SOL } from "../../utils/drift";
 import { DRIFT_PROGRAM_ID } from "../../utils/drift";
+import { setupTestEnvironment } from "./balanceSetup";
 
 describe("Quartz Balance", () => {
     //all the things that need to be done before each test
@@ -22,92 +23,13 @@ describe("Quartz Balance", () => {
         user: Keypair,
         context: ProgramTestContext,
         banksClient: BanksClient,
-        quartzProgram: Program<Quartz>;
+        quartzProgram: Program<Quartz>,
+        vaultPda: PublicKey;
 
     user = Keypair.generate();
 
     beforeAll(async () => {
-        const connection = new Connection(RPC_URL);
-        const accountInfo = await connection.getAccountInfo(new PublicKey("5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN"));
-        const solSpotMarketVaultAccountInfo = await connection.getAccountInfo(new PublicKey("DfYCNezifxAEsQbAJ1b3j6PX3JVBe8fu11KBhxsbw5d2"));
-        const usdcSpotMarketVaultAccountInfo = await connection.getAccountInfo(new PublicKey("GXWqPpjQpdz7KZw9p7f5PX2eGxHAhvpNXiviFkAB8zXg"));
-        const solSpotMarketAccountInfo = await connection.getAccountInfo(DRIFT_SPOT_MARKET_SOL);
-        const usdcSpotMarketAccountInfo = await connection.getAccountInfo(DRIFT_SPOT_MARKET_USDC);
-        const oracle1AccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_1);
-
-
-        context = await startAnchor("./", [{ name: "drift", programId: DRIFT_PROGRAM_ID }],
-            [
-                {
-                    address: user.publicKey,
-                    info: {
-                        lamports: 1_000_000_000,
-                        data: Buffer.alloc(0),
-                        owner: SystemProgram.programId,
-                        executable: false,
-                    },
-                },
-                //drift authority
-                {
-                    address: new PublicKey("rxEaSMXqKx9GvYY8rrZB1SG5CQUXTfnXbZSaceaaPzA"),
-                    info: {
-                        lamports: 1_000_000_000,
-                        data: Buffer.alloc(0),
-                        owner: new PublicKey("6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2"),
-                        executable: false,
-                    }
-                },
-                //drift state
-                {
-                    address: new PublicKey("5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN"),
-                    info: accountInfo
-                },
-                // Drift Sol spot market vault
-                {
-                    address: new PublicKey("DfYCNezifxAEsQbAJ1b3j6PX3JVBe8fu11KBhxsbw5d2"),
-                    info: solSpotMarketVaultAccountInfo
-                },
-                // Drift USDC spot market vault
-                {
-                    address: new PublicKey("GXWqPpjQpdz7KZw9p7f5PX2eGxHAhvpNXiviFkAB8zXg"),
-                    info: usdcSpotMarketVaultAccountInfo
-                },
-                {
-                    address: DRIFT_SPOT_MARKET_SOL,
-                    info: solSpotMarketAccountInfo
-                },
-                {
-                    address: DRIFT_SPOT_MARKET_USDC,
-                    info: usdcSpotMarketAccountInfo
-                },
-                {
-                    address: DRIFT_ORACLE_1,
-                    info: oracle1AccountInfo
-                }
-            ]
-        );
-
-        banksClient = context.banksClient;
-        provider = new BankrunProvider(context);
-
-        quartzProgram = new Program<Quartz>(
-            QuartzIDL,
-            QUARTZ_PROGRAM_ID,
-            provider,
-        );
-
-
-        const vaultPda = getVault(user.publicKey);
-
-        await quartzProgram.methods
-            .initUser()
-            .accounts({
-                vault: vaultPda,
-                owner: user.publicKey,
-                systemProgram: SystemProgram.programId,
-            })
-            .signers([user])
-            .rpc();
+        ({ user, context, banksClient, quartzProgram, vaultPda } = await setupTestEnvironment());
 
         const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
         expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
