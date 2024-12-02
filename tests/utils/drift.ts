@@ -20,3 +20,31 @@ export const getDriftSpotMarketVault = (marketIndex: number) => {
     );
     return spotMarketVaultPda;
 }
+
+export const getDriftUser = (authority: PublicKey) => {
+    const [userPda] = web3.PublicKey.findProgramAddressSync(
+        [
+            Buffer.from("user"),
+            authority.toBuffer(),
+            new BN(0).toArrayLike(Buffer, 'le', 2),
+        ],
+        DRIFT_PROGRAM_ID
+    );
+    return userPda;
+}
+
+export const getDriftUserStats = (authority: PublicKey) => {
+    const [userStatsPda] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("user_stats"), authority.toBuffer()],
+        DRIFT_PROGRAM_ID
+    );
+    return userStatsPda;
+}
+
+export const getDriftState = () => {
+    const [statePda] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("drift_state")],
+        DRIFT_PROGRAM_ID
+    );
+    return statePda;
+}
