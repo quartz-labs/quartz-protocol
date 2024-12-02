@@ -8,8 +8,7 @@ import {
 } from "solana-bankrun";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { IDL as QuartzIDL, Quartz } from "../../../target/types/quartz";
-import { getVault } from "../../utils/drift";
-import { QUARTZ_PROGRAM_ID } from "../../utils/helpers";
+import { getVault, QUARTZ_PROGRAM_ID } from "../../utils/helpers";
 
 describe("Quartz User", () => {
 	let provider: BankrunProvider,
