@@ -11,6 +11,7 @@ import { Keypair, PublicKey, SystemProgram, TransactionMessage, VersionedTransac
 import { IDL as QuartzIDL, Quartz } from "../../../target/types/quartz";
 import { expectError, getVault, QUARTZ_PROGRAM_ID, RPC_URL } from "../../utils/helpers";
 import { DRIFT_PROGRAM_ID, getDriftState, getDriftUser, getDriftUserStats } from "../../utils/drift";
+import { initDriftAccount, initUser } from "./userSetup";
 
 describe("Quartz User", () => {
     let provider: BankrunProvider,
@@ -63,15 +64,7 @@ describe("Quartz User", () => {
         vaultPda = getVault(user.publicKey);
 
         // Initialize user
-        await quartzProgram.methods
-            .initUser()
-            .accounts({
-                vault: vaultPda,
-                owner: user.publicKey,
-                systemProgram: SystemProgram.programId,
-            })
-            .signers([user])
-            .rpc();
+        await initUser(quartzProgram, banksClient, vaultPda, user);
     };
 
     test("Init Drift User", async () => {
@@ -120,29 +113,3 @@ describe("Quartz User", () => {
         // TODO: Add expectations
     });
 });
-
-const initDriftAccount = async (quartzProgram: Program<Quartz>, banksClient: BanksClient, vaultPda: PublicKey, user: Keypair) => {
-    const ix = await quartzProgram.methods
-        .initDriftAccount()
-        .accounts({
-            vault: vaultPda,
-            owner: user.publicKey,
-            driftUser: getDriftUser(vaultPda),
-            driftUserStats: getDriftUserStats(vaultPda),
-            driftState: getDriftState(),
-            driftProgram: DRIFT_PROGRAM_ID,
-            rent: web3.SYSVAR_RENT_PUBKEY,
-            systemProgram: SystemProgram.programId,
-        })
-        .instruction();
-
-    const latestBlockhash = await banksClient.getLatestBlockhash();
-    const messageV0 = new TransactionMessage({
-        payerKey: user.publicKey,
-        recentBlockhash: latestBlockhash[0],
-        instructions: [ix],
-    }).compileToV0Message();
-    
-    const tx = new VersionedTransaction(messageV0);
-    return await banksClient.processTransaction(tx);
-};

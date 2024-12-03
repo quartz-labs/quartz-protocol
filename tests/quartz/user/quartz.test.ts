@@ -9,6 +9,7 @@ import {
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { IDL as QuartzIDL, Quartz } from "../../../target/types/quartz";
 import { getVault, QUARTZ_PROGRAM_ID } from "../../utils/helpers";
+import { initUser } from "./userSetup";
 
 describe("Quartz User", () => {
 	let provider: BankrunProvider,
@@ -39,20 +40,14 @@ describe("Quartz User", () => {
 			QUARTZ_PROGRAM_ID,
 			provider,
 		);
+
+		banksClient = context.banksClient;
 	});
 
 	test("Init User", async () => {
 		const vaultPda = getVault(user.publicKey);
 
-		await quartzProgram.methods
-			.initUser()
-			.accounts({
-				vault: vaultPda,
-				owner: user.publicKey,
-				systemProgram: SystemProgram.programId,
-			})
-			.signers([user])
-			.rpc();
+		await initUser(quartzProgram, banksClient, vaultPda, user);
 
 		const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
 		expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
@@ -65,15 +60,7 @@ describe("Quartz User", () => {
 		);
 
 		try {
-			await quartzProgram.methods
-				.initUser()
-				.accounts({
-					vault: badVaultPda,
-						owner: user.publicKey,
-						systemProgram: SystemProgram.programId,
-				})
-				.signers([user])
-				.rpc();
+			await initUser(quartzProgram, banksClient, badVaultPda, user);
 
 			// If we reach here, the test should fail
 			expect(false).toBe(true);
@@ -85,15 +72,7 @@ describe("Quartz User", () => {
 	test("Close User", async () => {
 		const vaultPda = getVault(user.publicKey);
 
-		await quartzProgram.methods
-			.initUser()
-			.accounts({
-				vault: vaultPda,
-					owner: user.publicKey,
-					systemProgram: SystemProgram.programId,
-			})
-			.signers([user])
-			.rpc();
+		await initUser(quartzProgram, banksClient, vaultPda, user);
 
 		const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
 		expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
