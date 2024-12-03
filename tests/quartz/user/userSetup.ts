@@ -3,6 +3,7 @@ import { getDriftUserStats, getDriftState, getDriftUser, DRIFT_PROGRAM_ID } from
 import { Program, web3 } from "@coral-xyz/anchor";
 import { Quartz } from "../../../target/types/quartz";
 import { BanksClient } from "solana-bankrun";
+import { expect } from "@jest/globals";
 
 export const initDriftAccount = async (quartzProgram: Program<Quartz>, banksClient: BanksClient, vaultPda: PublicKey, user: Keypair) => {
     const ix = await quartzProgram.methods
@@ -27,7 +28,12 @@ export const initDriftAccount = async (quartzProgram: Program<Quartz>, banksClie
     }).compileToV0Message();
 
     const tx = new VersionedTransaction(messageV0);
-    return await banksClient.processTransaction(tx);
+    const meta = await banksClient.processTransaction(tx);
+
+    expect(meta.logMessages[1]).toBe("Program log: Instruction: InitDriftAccount");
+    expect(meta.logMessages[9]).toBe("Program log: Instruction: InitializeUser");
+    expect(meta.logMessages[14]).toBe("Program dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH success");
+    expect(meta.logMessages[16]).toBe("Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success");
 };
 
 
@@ -49,5 +55,8 @@ export const initUser = async (quartzProgram: Program<Quartz>, banksClient: Bank
     }).compileToV0Message();
 
     const tx = new VersionedTransaction(messageV0);
-    return await banksClient.processTransaction(tx);
+    await banksClient.processTransaction(tx);
+
+    const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
+    expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
 };

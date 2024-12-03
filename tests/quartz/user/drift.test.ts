@@ -73,12 +73,7 @@ describe("Quartz User", () => {
         const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
         expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
 
-        const meta = await initDriftAccount(quartzProgram, banksClient, vaultPda, user);
-
-        expect(meta.logMessages[1]).toBe("Program log: Instruction: InitDriftAccount");
-        expect(meta.logMessages[9]).toBe("Program log: Instruction: InitializeUser");
-        expect(meta.logMessages[14]).toBe("Program dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH success");
-        expect(meta.logMessages[16]).toBe("Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success");
+        await initDriftAccount(quartzProgram, banksClient, vaultPda, user);
     });
 
     test("Close Drift Account", async () => {

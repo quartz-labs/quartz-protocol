@@ -48,9 +48,6 @@ describe("Quartz User", () => {
 		const vaultPda = getVault(user.publicKey);
 
 		await initUser(quartzProgram, banksClient, vaultPda, user);
-
-		const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
-		expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
 	});
 
 	test("Fails to init user with wrong vault", async () => {
@@ -73,9 +70,6 @@ describe("Quartz User", () => {
 		const vaultPda = getVault(user.publicKey);
 
 		await initUser(quartzProgram, banksClient, vaultPda, user);
-
-		const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
-		expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
 
 		await quartzProgram.methods
 			.closeUser()

@@ -5,6 +5,8 @@ import { Program } from "@coral-xyz/anchor";
 import { Quartz, IDL as QuartzIDL } from "../../../target/types/quartz";
 import { getVault, QUARTZ_PROGRAM_ID, RPC_URL } from "../../utils/helpers";
 import { DRIFT_PROGRAM_ID, DRIFT_SPOT_MARKET_SOL, DRIFT_SPOT_MARKET_USDC, DRIFT_ORACLE_1, DRIFT_ORACLE_2, DRIFT_SIGNER } from "../../utils/drift";
+import { initDriftAccount, initUser } from "../user/userSetup";
+import { makeDriftLamportDeposit } from "./deposit.test";
 
 export const setupTestEnvironment = async () => {
     const user = Keypair.generate();
@@ -88,15 +90,18 @@ export const setupTestEnvironment = async () => {
 
     const vaultPda = getVault(user.publicKey);
 
-    await quartzProgram.methods
-        .initUser()
-        .accounts({
-            vault: vaultPda,
-            owner: user.publicKey,
-            systemProgram: SystemProgram.programId,
-        })
-        .signers([user])
-        .rpc();
-
     return { user, context, banksClient, quartzProgram, vaultPda };
 };
+
+//Sets up the drift account
+export const setupQuartzAndDriftAccount = async (quartzProgram: Program<Quartz>, banksClient: BanksClient, vaultPda: PublicKey, user: Keypair) => {
+    await initUser(quartzProgram, banksClient, vaultPda, user);
+    await initDriftAccount(quartzProgram, banksClient, vaultPda, user);
+}
+
+
+//Sets up the drift account + funds it with SOL
+export const setupDriftAccountWithFunds = async (quartzProgram: Program<Quartz>, banksClient: BanksClient, vaultPda: PublicKey, user: Keypair) => {
+    await setupQuartzAndDriftAccount(quartzProgram, banksClient, vaultPda, user);
+    await makeDriftLamportDeposit(quartzProgram, user, 100_000_000, banksClient);
+}
