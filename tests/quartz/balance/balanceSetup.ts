@@ -1,9 +1,9 @@
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { BankrunProvider } from "anchor-bankrun";
-import { startAnchor, ProgramTestContext, BanksClient } from "solana-bankrun";
+import { startAnchor, BanksClient } from "solana-bankrun";
 import { Program } from "@coral-xyz/anchor";
 import { Quartz, IDL as QuartzIDL } from "../../../target/types/quartz";
-import { getVault, QUARTZ_PROGRAM_ID, RPC_URL } from "../../utils/helpers";
+import { getVault, QUARTZ_PROGRAM_ID, RPC_URL, USDC_MINT, WSOL_MINT } from "../../utils/helpers";
 import { DRIFT_PROGRAM_ID, DRIFT_SPOT_MARKET_SOL, DRIFT_SPOT_MARKET_USDC, DRIFT_ORACLE_1, DRIFT_ORACLE_2, DRIFT_SIGNER } from "../../utils/drift";
 import { initDriftAccount, initUser } from "../user/userSetup";
 import { makeDriftLamportDeposit } from "./deposit.test";
@@ -19,13 +19,14 @@ export const setupTestEnvironment = async () => {
     const oracle1AccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_1);
     const oracle2AccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_2);
     const driftSignerAccountInfo = await connection.getAccountInfo(DRIFT_SIGNER);
+    const usdcMintAccountInfo = await connection.getAccountInfo(USDC_MINT);
 
     const context = await startAnchor("./", [{ name: "drift", programId: DRIFT_PROGRAM_ID }],
         [
             {
                 address: user.publicKey,
                 info: {
-                    lamports: 1_000_000_000,
+                    lamports: 1_000_000_000_000_000,
                     data: Buffer.alloc(0),
                     owner: SystemProgram.programId,
                     executable: false,
@@ -75,6 +76,10 @@ export const setupTestEnvironment = async () => {
             {
                 address: DRIFT_ORACLE_2,
                 info: oracle2AccountInfo
+            },
+            {
+                address: USDC_MINT,
+                info: usdcMintAccountInfo
             }
         ]
     );
@@ -103,5 +108,5 @@ export const setupQuartzAndDriftAccount = async (quartzProgram: Program<Quartz>,
 //Sets up the drift account + funds it with SOL
 export const setupDriftAccountWithFunds = async (quartzProgram: Program<Quartz>, banksClient: BanksClient, vaultPda: PublicKey, user: Keypair) => {
     await setupQuartzAndDriftAccount(quartzProgram, banksClient, vaultPda, user);
-    await makeDriftLamportDeposit(quartzProgram, user, 100_000_000, banksClient);
+    await makeDriftLamportDeposit(quartzProgram, user, 100_000_000, banksClient, WSOL_MINT);
 }

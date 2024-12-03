@@ -1,18 +1,17 @@
-import { AnchorProvider, BN, Program, setProvider, web3 } from "@coral-xyz/anchor";
+import { BN, Program } from "@coral-xyz/anchor";
 import { BankrunProvider } from "anchor-bankrun";
-import { beforeAll, expect, test, beforeEach } from '@jest/globals';
+import { beforeAll, expect, test } from '@jest/globals';
 import {
-    startAnchor,
     ProgramTestContext,
     BanksClient
 } from "solana-bankrun";
-import { Keypair, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction, Connection } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import { IDL as QuartzIDL, Quartz } from "../../../target/types/quartz";
 import { createCloseAccountInstruction } from "@solana/spl-token";
 import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
-import { getVault, getVaultSpl, QUARTZ_PROGRAM_ID, RPC_URL, toRemainingAccount, WSOL_MINT } from "../../utils/helpers";
-import { DRIFT_MARKET_INDEX_SOL, DRIFT_ORACLE_1, DRIFT_SPOT_MARKET_USDC, getDriftSpotMarketVault, getDriftState, getDriftUser, getDriftUserStats } from "../../utils/drift";
+import { getVault, getVaultSpl, toRemainingAccount, WSOL_MINT } from "../../utils/helpers";
+import { DRIFT_MARKET_INDEX_SOL, DRIFT_ORACLE_1, getDriftSpotMarketVault, getDriftState, getDriftUser, getDriftUserStats } from "../../utils/drift";
 import { DRIFT_SPOT_MARKET_SOL } from "../../utils/drift";
 import { DRIFT_PROGRAM_ID } from "../../utils/drift";
 import { setupQuartzAndDriftAccount, setupTestEnvironment } from "./balanceSetup";
@@ -33,21 +32,21 @@ describe("Quartz Balance", () => {
         await setupQuartzAndDriftAccount(quartzProgram, banksClient, vaultPda, user);
     });
 
-    test("Deposit", async () => {
-        await makeDriftLamportDeposit(quartzProgram, user, 100_000_000, banksClient);
+    test("Deposit Lamports", async () => {
+        await makeDriftLamportDeposit(quartzProgram, user, 100_000_000, banksClient, WSOL_MINT);
     });
 });
 
-export const makeDriftLamportDeposit = async (program: Program<Quartz>, wallet: Keypair, amountLamports: number, banksClient: BanksClient) => {
+export const makeDriftLamportDeposit = async (program: Program<Quartz>, wallet: Keypair, amountLamports: number, banksClient: BanksClient, splMint: PublicKey) => {
 
-    const walletWSol = await getAssociatedTokenAddress(WSOL_MINT, wallet.publicKey);
+    const walletWSol = await getAssociatedTokenAddress(splMint, wallet.publicKey);
     const vaultPda = getVault(wallet.publicKey);
 
     const oix_createWSolAta = createAssociatedTokenAccountInstruction(
         wallet.publicKey,
         walletWSol,
         wallet.publicKey,
-        WSOL_MINT
+        splMint
     )
     const ix_wrapSol = SystemProgram.transfer({
         fromPubkey: wallet.publicKey,
@@ -61,10 +60,10 @@ export const makeDriftLamportDeposit = async (program: Program<Quartz>, wallet: 
         .deposit(new BN(amountLamports), DRIFT_MARKET_INDEX_SOL, false)
         .accounts({
             vault: vaultPda,
-            vaultSpl: getVaultSpl(vaultPda, WSOL_MINT),
+            vaultSpl: getVaultSpl(vaultPda, splMint),
             owner: wallet.publicKey,
             ownerSpl: walletWSol,
-            splMint: WSOL_MINT,
+            splMint: splMint,
             driftUser: getDriftUser(vaultPda),
             driftUserStats: getDriftUserStats(vaultPda),
             driftState: getDriftState(),
