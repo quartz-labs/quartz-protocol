@@ -7,6 +7,7 @@ import { getVault, QUARTZ_PROGRAM_ID, RPC_URL, USDC_MINT, WSOL_MINT } from "../.
 import { DRIFT_PROGRAM_ID, DRIFT_SPOT_MARKET_SOL, DRIFT_SPOT_MARKET_USDC, DRIFT_ORACLE_1, DRIFT_ORACLE_2, DRIFT_SIGNER } from "../../utils/drift";
 import { initDriftAccount, initUser } from "../user/userSetup";
 import { makeDriftLamportDeposit } from "./deposit.test";
+import { makeDriftUSDCWithdraw } from "./withdraw.test";
 
 export const setupTestEnvironment = async () => {
     const user = Keypair.generate();
@@ -109,4 +110,10 @@ export const setupQuartzAndDriftAccount = async (quartzProgram: Program<Quartz>,
 export const setupDriftAccountWithFunds = async (quartzProgram: Program<Quartz>, banksClient: BanksClient, vaultPda: PublicKey, user: Keypair) => {
     await setupQuartzAndDriftAccount(quartzProgram, banksClient, vaultPda, user);
     await makeDriftLamportDeposit(quartzProgram, user, 100_000_000, banksClient, WSOL_MINT);
+}
+
+export const setupDriftAccountWithFundsAndLoan = async (quartzProgram: Program<Quartz>, banksClient: BanksClient, vaultPda: PublicKey, user: Keypair) => {
+    await setupQuartzAndDriftAccount(quartzProgram, banksClient, vaultPda, user);
+    await makeDriftLamportDeposit(quartzProgram, user, 100_000_000, banksClient, WSOL_MINT);
+    await makeDriftUSDCWithdraw(quartzProgram, user, 90_000, banksClient);
 }
