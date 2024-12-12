@@ -65,26 +65,26 @@ pub mod quartz {
         withdraw_handler(ctx, amount_base_units, drift_market_index, reduce_only)
     }
 
-    // Auto Repay
+    // Collateral Repay
 
-    pub fn auto_repay_start<'info>(
-        ctx: Context<'_, '_, '_, 'info, AutoRepayStart<'info>>,
+    pub fn collateral_repay_start<'info>(
+        ctx: Context<'_, '_, '_, 'info, CollateralRepayStart<'info>>,
         start_withdraw_balance: u64  
     ) -> Result<()> {
-        auto_repay_start_handler(ctx, start_withdraw_balance)
+        collateral_repay_start_handler(ctx, start_withdraw_balance)
     }
 
-    pub fn auto_repay_deposit<'info>(
-        ctx: Context<'_, '_, 'info, 'info, AutoRepayDeposit<'info>>,
+    pub fn collateral_repay_deposit<'info>(
+        ctx: Context<'_, '_, 'info, 'info, CollateralRepayDeposit<'info>>,
         drift_market_index: u16
     ) -> Result<()> {
-        auto_repay_deposit_handler(ctx, drift_market_index)
+        collateral_repay_deposit_handler(ctx, drift_market_index)
     }
 
-    pub fn auto_repay_withdraw<'info>(
-        ctx: Context<'_, '_, 'info, 'info, AutoRepayWithdraw<'info>>,
+    pub fn collateral_repay_withdraw<'info>(
+        ctx: Context<'_, '_, 'info, 'info, CollateralRepayWithdraw<'info>>,
         drift_market_index: u16
     ) -> Result<()> {
-        auto_repay_withdraw_handler(ctx, drift_market_index)
+        collateral_repay_withdraw_handler(ctx, drift_market_index)
     }
 }

@@ -2,8 +2,8 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum QuartzError {
-    #[msg("Illegal auto repay instructions")]
-    IllegalAutoRepayInstructions,
+    #[msg("Illegal collateral repay instructions")]
+    IllegalCollateralRepayInstructions,
     #[msg("Invalid mint provided")]
     InvalidRepayMint,
     #[msg("Price slippage is above maximum")]
@@ -30,10 +30,10 @@ pub enum QuartzError {
     UnableToLoadAccountLoader,
     #[msg("Could not deserialize introspection instruction data")]
     DeserializationError,
-    #[msg("Account health is not low enough for auto_repay")]
-    NotReachedAutoRepayThreshold,
-    #[msg("Not enough collateral sold in auto_repay")]
-    AutoRepayHealthTooLow,
-    #[msg("Too much collateral sold in auto_repay")]
-    AutoRepayHealthTooHigh,
+    #[msg("Account health is not low enough for collateral_repay")]
+    NotReachedCollateralRepayThreshold,
+    #[msg("Not enough collateral sold in collateral_repay")]
+    CollateralRepayHealthTooLow,
+    #[msg("Too much collateral sold in collateral_repay")]
+    CollateralRepayHealthTooHigh,
 }

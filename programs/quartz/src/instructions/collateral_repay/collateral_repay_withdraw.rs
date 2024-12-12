@@ -23,7 +23,7 @@ use drift::{
 use pyth_solana_receiver_sdk::price_update::{get_feed_id_from_hex, PriceUpdateV2};
 use crate::{
     check, 
-    constants::{AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT, AUTO_REPAY_MAX_SLIPPAGE_BPS, AUTO_REPAY_MIN_HEALTH_RESULT_PERCENT, BASE_UNITS_PER_USDC, DRIFT_MARKET_INDEX_SOL, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, MAX_PRICE_AGE_SECONDS_SOL, MAX_PRICE_AGE_SECONDS_USDC, PYTH_FEED_SOL_USD, PYTH_FEED_USDC_USD, WSOL_MINT}, 
+    constants::{COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT, COLLATERAL_REPAY_MAX_SLIPPAGE_BPS, COLLATERAL_REPAY_MIN_HEALTH_RESULT_PERCENT, BASE_UNITS_PER_USDC, DRIFT_MARKET_INDEX_SOL, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, MAX_PRICE_AGE_SECONDS_SOL, MAX_PRICE_AGE_SECONDS_USDC, PYTH_FEED_SOL_USD, PYTH_FEED_USDC_USD, WSOL_MINT}, 
     errors::QuartzError, 
     helpers::get_jup_exact_out_route_out_amount, 
     load_mut, 
@@ -32,7 +32,7 @@ use crate::{
 };
 
 #[derive(Accounts)]
-pub struct AutoRepayWithdraw<'info> {
+pub struct CollateralRepayWithdraw<'info> {
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
@@ -116,39 +116,39 @@ fn validate_instruction_order<'info>(
     swap_instruction: &Instruction,
     deposit_instruction: &Instruction
 ) -> Result<()> {
-    // Check the 1st instruction is auto_repay_start
+    // Check the 1st instruction is collateral_repay_start
     check!(
         start_instruction.program_id.eq(&crate::id()),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         start_instruction.data[..8]
-            .eq(&crate::instruction::AutoRepayStart::DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+            .eq(&crate::instruction::CollateralRepayStart::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     // Check the 2nd instruction is Jupiter's exact_out_route
     check!(
         swap_instruction.program_id.eq(&JUPITER_ID),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         swap_instruction.data[..8].eq(&JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
     
-    // Check the 3rd instruction is auto_repay_deposit
+    // Check the 3rd instruction is collateral_repay_deposit
     check!(
         deposit_instruction.program_id.eq(&crate::id()),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         deposit_instruction.data[..8]
-            .eq(&crate::instruction::AutoRepayDeposit::DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+            .eq(&crate::instruction::CollateralRepayDeposit::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     // This instruction is the 4th instruction
@@ -158,7 +158,7 @@ fn validate_instruction_order<'info>(
 
 #[inline(never)]
 fn validate_user_accounts<'info>(
-    ctx: &Context<'_, '_, '_, 'info, AutoRepayWithdraw<'info>>,
+    ctx: &Context<'_, '_, '_, 'info, CollateralRepayWithdraw<'info>>,
     start_instruction: &Instruction,
     deposit_instruction: &Instruction
 ) -> Result<()> {
@@ -223,7 +223,7 @@ fn validate_user_accounts<'info>(
 
 #[inline(never)]
 fn validate_prices<'info>(
-    ctx: &Context<'_, '_, '_, 'info, AutoRepayWithdraw<'info>>,
+    ctx: &Context<'_, '_, '_, 'info, CollateralRepayWithdraw<'info>>,
     deposit_amount: u64,
     withdraw_amount: u64
 ) -> Result<()> {
@@ -270,7 +270,7 @@ fn validate_prices<'info>(
  
     // Allow for slippage, using integar multiplication to prevent floating point errors
     let multiplier_deposit = 100 * 100; // 100% x 100bps
-    let multiplier_withdraw = multiplier_deposit - (AUTO_REPAY_MAX_SLIPPAGE_BPS as u128);
+    let multiplier_withdraw = multiplier_deposit - (COLLATERAL_REPAY_MAX_SLIPPAGE_BPS as u128);
 
     let deposit_slippage_check_value = (deposit_value as u128).checked_mul(multiplier_deposit)
         .ok_or(QuartzError::MathOverflow)?;
@@ -287,7 +287,7 @@ fn validate_prices<'info>(
 
 #[inline(never)]
 fn validate_account_health<'info>(
-    ctx: &Context<'_, '_, 'info, 'info, AutoRepayWithdraw<'info>>,
+    ctx: &Context<'_, '_, 'info, 'info, CollateralRepayWithdraw<'info>>,
     drift_market_index: u16
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
@@ -301,20 +301,20 @@ fn validate_account_health<'info>(
     let quartz_account_health = get_quartz_account_health(margin_calculation)?;
 
     check!(
-        quartz_account_health >= AUTO_REPAY_MIN_HEALTH_RESULT_PERCENT,
-        QuartzError::AutoRepayHealthTooLow
+        quartz_account_health >= COLLATERAL_REPAY_MIN_HEALTH_RESULT_PERCENT,
+        QuartzError::CollateralRepayHealthTooLow
     );
 
     check!(
-        quartz_account_health <= AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT,
-        QuartzError::AutoRepayHealthTooHigh
+        quartz_account_health <= COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT,
+        QuartzError::CollateralRepayHealthTooHigh
     );
 
     Ok(())
 }
 
-pub fn auto_repay_withdraw_handler<'info>(
-    ctx: Context<'_, '_, 'info, 'info, AutoRepayWithdraw<'info>>,
+pub fn collateral_repay_withdraw_handler<'info>(
+    ctx: Context<'_, '_, 'info, 'info, CollateralRepayWithdraw<'info>>,
     drift_market_index: u16
 ) -> Result<()> {
     check!(
