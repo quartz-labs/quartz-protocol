@@ -1,13 +1,12 @@
 use anchor_lang::prelude::*;
 use drift::{
     program::Drift,
-    cpi::delete_user, 
-    cpi::accounts::DeleteUser,
     state::{
         state::State as DriftState, 
         user::{User as DriftUser, UserStats as DriftUserStats}
     }
 };
+use solana_program::{instruction::Instruction, program::invoke_signed};
 use crate::state::Vault;
 
 #[derive(Accounts)]
@@ -20,7 +19,6 @@ pub struct CloseDriftAccount<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
-    #[account(mut)]
     pub owner: Signer<'info>,
 
     #[account(
@@ -62,18 +60,41 @@ pub fn close_drift_account_handler(
     ];
     let signer_seeds = &[&seeds[..]];
 
-    let delete_user_cpi_context = CpiContext::new_with_signer(
-        ctx.accounts.drift_program.to_account_info(),
-        DeleteUser {
-            user: ctx.accounts.drift_user.to_account_info(),
-            user_stats: ctx.accounts.drift_user_stats.to_account_info(),
-            state: ctx.accounts.drift_state.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info()
-        },
-        signer_seeds
-    );
-    
-    delete_user(delete_user_cpi_context)?;
+    // let delete_user_cpi_context = CpiContext::new_with_signer(
+    //     ctx.accounts.drift_program.to_account_info(),
+    //     DeleteUser {
+    //         user: ctx.accounts.drift_user.to_account_info(),
+    //         user_stats: ctx.accounts.drift_user_stats.to_account_info(),
+    //         state: ctx.accounts.drift_state.to_account_info(),
+    //         authority: ctx.accounts.vault.to_account_info()
+    //     },
+    //     signer_seeds
+    // );
+
+    // delete_user(delete_user_cpi_context)?;
+
+    // Create instruction data using Drift's instruction descriminator to get around accounts struct
+    let ix = Instruction {
+        program_id: ctx.accounts.drift_program.key(),
+        accounts: vec![
+            AccountMeta::new(ctx.accounts.drift_user.key(), false),
+            AccountMeta::new(ctx.accounts.drift_user_stats.key(), false),
+            AccountMeta::new(ctx.accounts.drift_state.key(), false),
+            AccountMeta::new(ctx.accounts.vault.key(), true),
+        ],
+        data: vec![186, 85, 17, 249, 219, 231, 98, 251],
+    };
+
+    invoke_signed(
+        &ix,
+        &[
+            ctx.accounts.drift_user.to_account_info(),
+            ctx.accounts.drift_user_stats.to_account_info(),
+            ctx.accounts.drift_state.to_account_info(),
+            ctx.accounts.vault.to_account_info(),
+        ],
+        signer_seeds,
+    )?;
 
     Ok(())
 }

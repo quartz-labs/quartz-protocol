@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(Accounts)]
-pub struct AutoRepayStart<'info> {
+pub struct CollateralRepayStart<'info> {
     #[account(mut)]
     pub caller: Signer<'info>,
 
@@ -67,43 +67,43 @@ pub fn validate_instruction_order<'info>(
     // Check the 2nd instruction is Jupiter's exact_out_route
     check!(
         swap_instruction.program_id.eq(&JUPITER_ID),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         swap_instruction.data[..8].eq(&JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
-    // Check the 3rd instruction is auto_repay_deposit
+    // Check the 3rd instruction is collateral_repay_deposit
     check!(
         deposit_instruction.program_id.eq(&crate::id()),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         deposit_instruction.data[..8]
-            .eq(&crate::instruction::AutoRepayDeposit::DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+            .eq(&crate::instruction::CollateralRepayDeposit::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
-    // Check the 4th instruction is auto_repay_withdraw
+    // Check the 4th instruction is collateral_repay_withdraw
     check!(
         withdraw_instruction.program_id.eq(&crate::id()),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         withdraw_instruction.data[..8]
-            .eq(&crate::instruction::AutoRepayWithdraw::DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+            .eq(&crate::instruction::CollateralRepayWithdraw::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     Ok(())
 }
 
 fn validate_swap_data<'info>(
-    ctx: &Context<'_, '_, '_, 'info, AutoRepayStart<'info>>,
+    ctx: &Context<'_, '_, '_, 'info, CollateralRepayStart<'info>>,
     swap_instruction: &Instruction,
 ) -> Result<()> {
     let platform_fee_bps = get_jup_exact_out_route_platform_fees(swap_instruction)?;
@@ -127,8 +127,8 @@ fn validate_swap_data<'info>(
     Ok(())
 }
 
-pub fn auto_repay_start_handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, AutoRepayStart<'info>>,
+pub fn collateral_repay_start_handler<'info>(
+    ctx: Context<'_, '_, '_, 'info, CollateralRepayStart<'info>>,
     start_withdraw_balance: u64
 ) -> Result<()> {
     let index: usize = load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();

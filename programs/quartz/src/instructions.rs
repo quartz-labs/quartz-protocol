@@ -4,5 +4,5 @@ pub use user::*;
 mod balance;
 pub use balance::*;
 
-mod auto_repay;
-pub use auto_repay::*;
+mod collateral_repay;
+pub use collateral_repay::*;

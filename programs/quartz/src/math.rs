@@ -9,7 +9,7 @@ use drift::{
     }  
 };
 
-use crate::{constants::ACCOUNT_HEALTH_BUFFER_PERCENTAGE, errors::QuartzError};
+use crate::{constants::ACCOUNT_HEALTH_BUFFER_PERCENT, errors::QuartzError};
 
 pub(crate) type MarketSet = BTreeSet<u16>;
 
@@ -87,13 +87,13 @@ pub fn get_quartz_account_health(
     let total_collateral = margin_calculation.total_collateral;
     let margin_requirement = margin_calculation.margin_requirement;
 
-    if total_collateral < 0 || ACCOUNT_HEALTH_BUFFER_PERCENTAGE >= 100 {
+    if total_collateral < 0 || ACCOUNT_HEALTH_BUFFER_PERCENT >= 100 {
         return Ok(0);
     }
 
     let total_collateral_unsigned = total_collateral as u128;
 
-    let buffer_multiplier = 100u128.checked_sub(ACCOUNT_HEALTH_BUFFER_PERCENTAGE as u128)
+    let buffer_multiplier = 100u128.checked_sub(ACCOUNT_HEALTH_BUFFER_PERCENT as u128)
         .ok_or(QuartzError::MathOverflow)?;
     
     let adjusted_total_collateral = total_collateral_unsigned

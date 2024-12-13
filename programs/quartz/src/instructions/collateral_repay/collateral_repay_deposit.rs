@@ -36,7 +36,7 @@ use crate::{
 };
 
 #[derive(Accounts)]
-pub struct AutoRepayDeposit<'info> {
+pub struct CollateralRepayDeposit<'info> {
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
@@ -116,41 +116,41 @@ fn validate_instruction_order<'info>(
     swap_instruction: &Instruction,
     withdraw_instruction: &Instruction
 ) -> Result<()> {
-    // Check the 1st instruction is auto_repay_start
+    // Check the 1st instruction is collateral_repay_start
     check!(
         start_instruction.program_id.eq(&crate::id()),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         start_instruction.data[..8]
-            .eq(&crate::instruction::AutoRepayStart::DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+            .eq(&crate::instruction::CollateralRepayStart::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     // Check the 2nd instruction is Jupiter's exact_out_route
     check!(
         swap_instruction.program_id.eq(&JUPITER_ID),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         swap_instruction.data[..8].eq(&JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     // This instruction is the 3rd instruction
 
-    // Check the 4th instruction is auto_repay_withdraw
+    // Check the 4th instruction is collateral_repay_withdraw
     check!(
         withdraw_instruction.program_id.eq(&crate::id()),
-        QuartzError::IllegalAutoRepayInstructions
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
         withdraw_instruction.data[..8]
-            .eq(&crate::instruction::AutoRepayWithdraw::DISCRIMINATOR),
-        QuartzError::IllegalAutoRepayInstructions
+            .eq(&crate::instruction::CollateralRepayWithdraw::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
     Ok(())
@@ -158,7 +158,7 @@ fn validate_instruction_order<'info>(
 
 #[inline(never)]
 fn validate_account_health<'info>(
-    ctx: &Context<'_, '_, 'info, 'info, AutoRepayDeposit<'info>>,
+    ctx: &Context<'_, '_, 'info, 'info, CollateralRepayDeposit<'info>>,
     drift_market_index: u16
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
@@ -173,14 +173,14 @@ fn validate_account_health<'info>(
 
     check!(
         quartz_account_health == 0,
-        QuartzError::NotReachedAutoRepayThreshold
+        QuartzError::NotReachedCollateralRepayThreshold
     );
 
     Ok(())
 }
 
-pub fn auto_repay_deposit_handler<'info>(
-    ctx: Context<'_, '_, 'info, 'info, AutoRepayDeposit<'info>>,
+pub fn collateral_repay_deposit_handler<'info>(
+    ctx: Context<'_, '_, 'info, 'info, CollateralRepayDeposit<'info>>,
     drift_market_index: u16
 ) -> Result<()> {
     check!(
@@ -208,7 +208,10 @@ pub fn auto_repay_deposit_handler<'info>(
         QuartzError::InvalidDestinationTokenAccount
     );
 
-    validate_account_health(&ctx, drift_market_index)?;
+    // Validate account health if the owner isn't the caller
+    if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
+        validate_account_health(&ctx, drift_market_index)?;
+    }
 
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
