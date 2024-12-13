@@ -1,12 +1,13 @@
 import { Program } from "@coral-xyz/anchor";
 import { BankrunProvider } from "anchor-bankrun";
-import { expect, test } from "@jest/globals";
+import { beforeEach, describe, expect, test } from "@jest/globals";
 import { startAnchor, ProgramTestContext, BanksClient } from "solana-bankrun";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { IDL as QuartzIDL, Quartz } from "../../../target/types/quartz";
-import { getVault, QUARTZ_PROGRAM_ID } from "../../utils/helpers";
+import { getVaultPda } from "../../utils/helpers";
 import { closeUser, initUser } from "./instructions";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
+import { QUARTZ_PROGRAM_ID } from "../../utils/constants";
 
 
 describe("init_user", () => {
@@ -19,6 +20,8 @@ describe("init_user", () => {
 
   beforeEach(async () => {
     user = Keypair.generate();
+    vaultPda = getVaultPda(user.publicKey);
+
     context = await startAnchor(
       "./",
       [],
@@ -38,7 +41,6 @@ describe("init_user", () => {
     provider = new BankrunProvider(context);
     quartzProgram = new Program<Quartz>(QuartzIDL, QUARTZ_PROGRAM_ID, provider);
     banksClient = context.banksClient;
-    vaultPda = getVault(user.publicKey);
   });
 
   test("Should init user", async () => {
@@ -63,16 +65,11 @@ describe("init_user", () => {
     );
 
     try {
-      const meta = await initUser(quartzProgram, banksClient, {
+      await initUser(quartzProgram, banksClient, {
         vault: badVaultPda,
         owner: user.publicKey,
         systemProgram: SystemProgram.programId,
       });
-
-      expect(meta.logMessages[1]).toBe("Program log: Instruction: InitUser");
-      expect(meta.logMessages[2]).toBe(
-        "Program log: AnchorError caused by account: vault. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated."
-      );
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
@@ -81,19 +78,14 @@ describe("init_user", () => {
   });
 
   test("Should fail to init user with wrong vault PDA owner", async () => {
-    const otherVault = getVault(Keypair.generate().publicKey);
+    const otherVault = getVaultPda(Keypair.generate().publicKey);
 
     try {
-      const meta = await initUser(quartzProgram, banksClient, {
+      await initUser(quartzProgram, banksClient, {
         vault: otherVault,
         owner: user.publicKey,
         systemProgram: SystemProgram.programId,
       });
-
-      expect(meta.logMessages[1]).toBe("Program log: Instruction: InitUser");
-      expect(meta.logMessages[2]).toBe(
-        "Program log: AnchorError caused by account: vault. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated."
-      );
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
@@ -103,13 +95,11 @@ describe("init_user", () => {
 
   test("Should fail to init user with wrong system program", async () => {
     try {
-      const meta = await initUser(quartzProgram, banksClient, {
+      await initUser(quartzProgram, banksClient, {
         vault: vaultPda,
         owner: user.publicKey,
         systemProgram: Keypair.generate().publicKey,
       });
-
-      expect(meta.logMessages[1]).toBe("Program log: Instruction: InitUser");
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
@@ -132,6 +122,8 @@ describe("close_user", () => {
   beforeEach(async () => {
     user = Keypair.generate();
     otherUser = Keypair.generate();
+    vaultPda = getVaultPda(user.publicKey);
+    
     context = await startAnchor(
       "./",
       [],
@@ -161,7 +153,6 @@ describe("close_user", () => {
     quartzProgram = new Program<Quartz>(QuartzIDL, QUARTZ_PROGRAM_ID, provider);
     banksClient = context.banksClient;
 
-    vaultPda = getVault(user.publicKey);
     await initUser(quartzProgram, banksClient, {
       vault: vaultPda,
       owner: user.publicKey,
@@ -187,18 +178,13 @@ describe("close_user", () => {
   });
 
   test("Should fail to close user of vault that doesn't exist", async () => {
-    const randomVault = getVault(Keypair.generate().publicKey);
+    const randomVault = getVaultPda(Keypair.generate().publicKey);
 
     try {
-      const meta = await closeUser(quartzProgram, banksClient, {
+      await closeUser(quartzProgram, banksClient, {
         vault: randomVault,
         owner: user.publicKey,
       });
-
-      expect(meta.logMessages[1]).toBe("Program log: Instruction: CloseUser");
-      expect(meta.logMessages[2]).toBe(
-        "Program log: AnchorError caused by account: vault. Error Code: AccountNotInitialized. Error Number: 3012. Error Message: The program expected this account to be already initialized."
-      );
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
@@ -210,7 +196,7 @@ describe("close_user", () => {
     const otherProvider = new BankrunProvider(context);
     otherProvider.wallet = new NodeWallet(otherUser);
     const otherQuartzProgram = new Program<Quartz>(QuartzIDL, QUARTZ_PROGRAM_ID, otherProvider);
-    const otherVault = getVault(otherUser.publicKey);
+    const otherVault = getVaultPda(otherUser.publicKey);
 
     await initUser(otherQuartzProgram, banksClient, {
       vault: otherVault,
@@ -221,15 +207,10 @@ describe("close_user", () => {
     expect(vaultAccount.owner.toString()).toBe(otherUser.publicKey.toString());
 
     try {
-      const meta = await closeUser(quartzProgram, banksClient, {
+      await closeUser(quartzProgram, banksClient, {
         vault: otherVault,
         owner: user.publicKey,
       });
-
-      expect(meta.logMessages[1]).toBe("Program log: Instruction: CloseUser");
-      expect(meta.logMessages[2]).toBe(
-        "Program log: AnchorError caused by account: vault. Error Code: ConstraintSeeds. Error Number: 2006. Error Message: A seeds constraint was violated."
-      );
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {

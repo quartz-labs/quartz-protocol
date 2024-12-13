@@ -1,10 +1,4 @@
-import {
-  getVault,
-  QUARTZ_PROGRAM_ID,
-  RPC_URL,
-  toRemainingAccount,
-  USDC_MINT,
-} from "../../utils/helpers";
+import { getVaultPda } from "../../utils/helpers";
 import {
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddress,
@@ -22,8 +16,6 @@ import {
   DRIFT_SPOT_MARKET_USDC,
   getDriftUserStats,
 } from "../../utils/drift";
-import { getDriftUser } from "../../utils/drift";
-import { getVaultSpl, WSOL_MINT } from "../../utils/helpers";
 import {
   PublicKey,
   Keypair,
@@ -39,10 +31,12 @@ import BigNumber from "bignumber.js";
 import { BanksClient, startAnchor } from "solana-bankrun";
 import { BankrunProvider } from "anchor-bankrun";
 import { Quartz, IDL as QuartzIDL } from "../../../target/types/quartz";
+import config from "../../config/config";
+import { QUARTZ_PROGRAM_ID, USDC_MINT } from "../../utils/constants";
 
 export const setupTestEnvironment = async () => {
   const user = Keypair.generate();
-  const connection = new Connection(RPC_URL);
+  const connection = new Connection(config.RPC_URL);
   const accountInfo = await connection.getAccountInfo(
     new PublicKey("5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN")
   );
@@ -137,7 +131,7 @@ export const setupTestEnvironment = async () => {
     provider
   );
 
-  const vaultPda = getVault(user.publicKey);
+  const vaultPda = getVaultPda(user.publicKey);
 
   return { user, context, banksClient, quartzProgram, vaultPda };
 };

@@ -19,11 +19,11 @@ import {
 } from "@solana/spl-token";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 import {
-  getVault,
-  getVaultSpl,
-  toRemainingAccount,
-  WSOL_MINT,
+  getVaultPda,
+  getVaultSplPda,
+  toRemainingAccount
 } from "../../utils/helpers";
+import { WSOL_MINT } from "../../utils/constants";
 import {
   DRIFT_MARKET_INDEX_SOL,
   DRIFT_ORACLE_1,
@@ -80,7 +80,7 @@ export const makeDriftLamportDeposit = async (
   splMint: PublicKey
 ) => {
   const walletWSol = await getAssociatedTokenAddress(splMint, wallet.publicKey);
-  const vaultPda = getVault(wallet.publicKey);
+  const vaultPda = getVaultPda(wallet.publicKey);
 
   const oix_createWSolAta = createAssociatedTokenAccountInstruction(
     wallet.publicKey,
@@ -100,7 +100,7 @@ export const makeDriftLamportDeposit = async (
     .deposit(new BN(amountLamports), DRIFT_MARKET_INDEX_SOL, false)
     .accounts({
       vault: vaultPda,
-      vaultSpl: getVaultSpl(vaultPda, splMint),
+      vaultSpl: getVaultSplPda(vaultPda, splMint),
       owner: wallet.publicKey,
       ownerSpl: walletWSol,
       splMint: splMint,

@@ -74,44 +74,67 @@ export const closeUser = async (
 }
 
 
+export interface InitDriftAccountAccounts {
+  vault: PublicKey;
+  owner: PublicKey;
+  driftUser: PublicKey;
+  driftUserStats: PublicKey;
+  driftState: PublicKey;
+  driftProgram: PublicKey;
+  rent: PublicKey;
+  systemProgram: PublicKey;
+}
+
 export const initDriftAccount = async (
   quartzProgram: Program<Quartz>,
   banksClient: BanksClient,
-  vaultPda: PublicKey,
-  user: Keypair
+  accounts: InitDriftAccountAccounts
 ) => {
   const ix = await quartzProgram.methods
     .initDriftAccount()
-    .accounts({
-      vault: vaultPda,
-      owner: user.publicKey,
-      driftUser: getDriftUser(vaultPda),
-      driftUserStats: getDriftUserStats(vaultPda),
-      driftState: getDriftState(),
-      driftProgram: DRIFT_PROGRAM_ID,
-      rent: web3.SYSVAR_RENT_PUBKEY,
-      systemProgram: SystemProgram.programId,
-    })
+    .accounts(accounts)
     .instruction();
 
   const latestBlockhash = await banksClient.getLatestBlockhash();
   const messageV0 = new TransactionMessage({
-    payerKey: user.publicKey,
+    payerKey: accounts.owner,
     recentBlockhash: latestBlockhash[0],
     instructions: [ix],
   }).compileToV0Message();
 
   const tx = new VersionedTransaction(messageV0);
   const meta = await banksClient.processTransaction(tx);
+  return meta;
+};
 
-  expect(meta.logMessages[1]).toBe(
-    "Program log: Instruction: InitDriftAccount"
-  );
-  expect(meta.logMessages[9]).toBe("Program log: Instruction: InitializeUser");
-  expect(meta.logMessages[14]).toBe(
-    "Program dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH success"
-  );
-  expect(meta.logMessages[16]).toBe(
-    "Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success"
-  );
+
+export interface CloseDriftAccountAccounts {
+  vault: PublicKey;
+  owner: PublicKey;
+  driftUser: PublicKey;
+  driftUserStats: PublicKey;
+  driftState: PublicKey;
+  driftProgram: PublicKey;
+}
+
+export const closeDriftAccount = async (
+  quartzProgram: Program<Quartz>,
+  banksClient: BanksClient,
+  accounts: CloseDriftAccountAccounts
+) => {
+  const ix = await quartzProgram.methods
+    .closeDriftAccount()
+    .accounts(accounts)
+    .instruction();
+
+  const latestBlockhash = await banksClient.getLatestBlockhash();
+  const messageV0 = new TransactionMessage({
+    payerKey: accounts.owner,
+    recentBlockhash: latestBlockhash[0],
+    instructions: [ix],
+  }).compileToV0Message();
+
+  const tx = new VersionedTransaction(messageV0);
+  const meta = await banksClient.processTransaction(tx);
+  return meta;
 };

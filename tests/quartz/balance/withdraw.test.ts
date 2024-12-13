@@ -18,12 +18,11 @@ import {
 } from "@solana/spl-token";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 import {
-  getVault,
-  getVaultSpl,
-  toRemainingAccount,
-  USDC_MINT,
-  WSOL_MINT,
+  getVaultPda,
+  getVaultSplPda,
+  toRemainingAccount
 } from "../../utils/helpers";
+import { WSOL_MINT, USDC_MINT } from "../../utils/constants";
 import {
   DRIFT_MARKET_INDEX_SOL,
   DRIFT_MARKET_INDEX_USDC,
@@ -98,7 +97,7 @@ export const makeDriftLamportWithdraw = async (
     WSOL_MINT,
     wallet.publicKey
   );
-  const vaultPda = getVault(wallet.publicKey);
+  const vaultPda = getVaultPda(wallet.publicKey);
 
   const oix_createWSolAta = createAssociatedTokenAccountInstruction(
     wallet.publicKey,
@@ -111,7 +110,7 @@ export const makeDriftLamportWithdraw = async (
     .withdraw(new BN(amountLamports), DRIFT_MARKET_INDEX_SOL, true)
     .accounts({
       vault: vaultPda,
-      vaultSpl: getVaultSpl(vaultPda, WSOL_MINT),
+      vaultSpl: getVaultSplPda(vaultPda, WSOL_MINT),
       owner: wallet.publicKey,
       ownerSpl: walletWSol,
       splMint: WSOL_MINT,
@@ -178,7 +177,7 @@ export const makeDriftUSDCWithdraw = async (
     USDC_MINT,
     wallet.publicKey
   );
-  const vaultPda = getVault(wallet.publicKey);
+  const vaultPda = getVaultPda(wallet.publicKey);
 
   const oix_createWSolAta = createAssociatedTokenAccountInstruction(
     wallet.publicKey,
@@ -191,7 +190,7 @@ export const makeDriftUSDCWithdraw = async (
     .withdraw(new BN(amountMicroCents), DRIFT_MARKET_INDEX_USDC, false)
     .accounts({
       vault: vaultPda,
-      vaultSpl: getVaultSpl(vaultPda, USDC_MINT),
+      vaultSpl: getVaultSplPda(vaultPda, USDC_MINT),
       owner: wallet.publicKey,
       ownerSpl: walletUsdc,
       splMint: USDC_MINT,

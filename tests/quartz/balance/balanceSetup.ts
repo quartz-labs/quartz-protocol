@@ -3,13 +3,7 @@ import { BankrunProvider } from "anchor-bankrun";
 import { startAnchor, BanksClient } from "solana-bankrun";
 import { Program } from "@coral-xyz/anchor";
 import { Quartz, IDL as QuartzIDL } from "../../../target/types/quartz";
-import {
-  getVault,
-  QUARTZ_PROGRAM_ID,
-  RPC_URL,
-  USDC_MINT,
-  WSOL_MINT,
-} from "../../utils/helpers";
+import { getVaultPda } from "../../utils/helpers";
 import {
   DRIFT_PROGRAM_ID,
   DRIFT_SPOT_MARKET_SOL,
@@ -21,10 +15,12 @@ import {
 import { initDriftAccount, initUser } from "../user/instructions";
 import { makeDriftLamportDeposit } from "./deposit.test";
 import { makeDriftUSDCWithdraw } from "./withdraw.test";
+import config from "../../config/config";
+import { QUARTZ_PROGRAM_ID, USDC_MINT, WSOL_MINT } from "../../utils/constants";
 
 export const setupTestEnvironment = async () => {
   const user = Keypair.generate();
-  const connection = new Connection(RPC_URL);
+  const connection = new Connection(config.RPC_URL);
   const accountInfo = await connection.getAccountInfo(
     new PublicKey("5zpq7DvB6UdFFvpmBPspGPNfUGoBRRCE2HHg5u3gxcsN")
   );
@@ -119,7 +115,7 @@ export const setupTestEnvironment = async () => {
     provider
   );
 
-  const vaultPda = getVault(user.publicKey);
+  const vaultPda = getVaultPda(user.publicKey);
 
   return { user, context, banksClient, quartzProgram, vaultPda };
 };
@@ -131,7 +127,11 @@ export const setupQuartzAndDriftAccount = async (
   vaultPda: PublicKey,
   user: Keypair
 ) => {
-  await initUser(quartzProgram, banksClient, vaultPda, user);
+  await initUser(quartzProgram, banksClient, {
+    vault: vaultPda,
+    owner: user.publicKey,
+    systemProgram: SystemProgram.programId,
+  });
   await initDriftAccount(quartzProgram, banksClient, vaultPda, user);
 };
 
