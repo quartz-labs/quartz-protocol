@@ -1,10 +1,12 @@
 **/node_modules/
 **/.env
 
-dist/
-target/
+**/dist/
+**/target/
+
 .idea/
 .DS_Store
 *.log
 *.tsbuildinfo
 anchor.lock
+

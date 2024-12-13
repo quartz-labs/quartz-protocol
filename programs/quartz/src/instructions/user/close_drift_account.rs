@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
 use drift::{
-    program::Drift,
-    state::{
+    program::Drift, state::{
         state::State as DriftState, 
         user::{User as DriftUser, UserStats as DriftUserStats}
     }
@@ -73,7 +72,8 @@ pub fn close_drift_account_handler(
 
     // delete_user(delete_user_cpi_context)?;
 
-    // Create instruction data using Drift's instruction descriminator to get around accounts struct
+    // Drift's CPI crate will cause CloseAccount to fail as the authority account is incorrectly marked as immutable
+    // Instead, manually create instruction data using Drift's instruction descriminator to get around the accounts struct
     let ix = Instruction {
         program_id: ctx.accounts.drift_program.key(),
         accounts: vec![
