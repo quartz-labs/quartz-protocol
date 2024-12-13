@@ -16,6 +16,64 @@ import { Quartz } from "../../../target/types/quartz";
 import { BanksClient } from "solana-bankrun";
 import { expect } from "@jest/globals";
 
+
+export interface InitUserAccounts {
+  vault: PublicKey;
+  owner: PublicKey;
+  systemProgram: PublicKey;
+}
+
+export const initUser = async (
+  quartzProgram: Program<Quartz>,
+  banksClient: BanksClient,
+  accounts: InitUserAccounts
+) => {
+  const ix = await quartzProgram.methods
+    .initUser()
+    .accounts(accounts)
+    .instruction();
+
+  const latestBlockhash = await banksClient.getLatestBlockhash();
+  const messageV0 = new TransactionMessage({
+    payerKey: accounts.owner,
+    recentBlockhash: latestBlockhash[0],
+    instructions: [ix],
+  }).compileToV0Message();
+
+  const tx = new VersionedTransaction(messageV0);
+  const meta = await banksClient.processTransaction(tx);
+  return meta;
+};
+
+
+export interface CloseUserAccounts {
+  vault: PublicKey;
+  owner: PublicKey;
+}
+
+export const closeUser = async (
+  quartzProgram: Program<Quartz>,
+  banksClient: BanksClient,
+  accounts: CloseUserAccounts
+) => {
+  const ix = await quartzProgram.methods
+    .closeUser()
+    .accounts(accounts)
+    .instruction();
+
+  const latestBlockhash = await banksClient.getLatestBlockhash();
+  const messageV0 = new TransactionMessage({
+    payerKey: accounts.owner,
+    recentBlockhash: latestBlockhash[0],
+    instructions: [ix],
+  }).compileToV0Message();
+
+  const tx = new VersionedTransaction(messageV0);
+  const meta = await banksClient.processTransaction(tx);
+  return meta;
+}
+
+
 export const initDriftAccount = async (
   quartzProgram: Program<Quartz>,
   banksClient: BanksClient,
@@ -56,33 +114,4 @@ export const initDriftAccount = async (
   expect(meta.logMessages[16]).toBe(
     "Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success"
   );
-};
-
-export const initUser = async (
-  quartzProgram: Program<Quartz>,
-  banksClient: BanksClient,
-  vaultPda: PublicKey,
-  user: Keypair
-) => {
-  const ix = await quartzProgram.methods
-    .initUser()
-    .accounts({
-      vault: vaultPda,
-      owner: user.publicKey,
-      systemProgram: SystemProgram.programId,
-    })
-    .instruction();
-
-  const latestBlockhash = await banksClient.getLatestBlockhash();
-  const messageV0 = new TransactionMessage({
-    payerKey: user.publicKey,
-    recentBlockhash: latestBlockhash[0],
-    instructions: [ix],
-  }).compileToV0Message();
-
-  const tx = new VersionedTransaction(messageV0);
-  await banksClient.processTransaction(tx);
-
-  const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
-  expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
 };

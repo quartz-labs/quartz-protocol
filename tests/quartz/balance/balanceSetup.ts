@@ -18,7 +18,7 @@ import {
   DRIFT_ORACLE_2,
   DRIFT_SIGNER,
 } from "../../utils/drift";
-import { initDriftAccount, initUser } from "../user/userSetup";
+import { initDriftAccount, initUser } from "../user/instructions";
 import { makeDriftLamportDeposit } from "./deposit.test";
 import { makeDriftUSDCWithdraw } from "./withdraw.test";
 

@@ -4,8 +4,8 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "test": "jest --runInBand",
-    "test:user": "jest --runInBand tests/quartz/user/drift.test.ts",
-    "test:collateral_repay": "jest --runInBand tests/quartz/collateral_repay/start.test.ts",
+    "test:user": "jest --runInBand tests/quartz/user/user.test.ts",
+    "test:collateral_repay": "jest --runInBand tests/quartz/collateralRepay/collateralRepay.test.ts",
     "test:balance": "jest --runInBand tests/quartz/balance/balance.test.ts"
   },
   "dependencies": {
