@@ -2,9 +2,8 @@
   "scripts": {
     "build": "anchor build",
     "test": "RUST_LOG= jest --runInBand",
-    "test:user": "RUST_LOG= jest --runInBand tests/quartz/user/quartz.test.ts tests/quartz/user/drift.test.ts",
-    "test:collateral_repay": "RUST_LOG= jest --runInBand tests/quartz/collateralRepay/collateralRepay.test.ts",
-    "test:balance": "RUST_LOG= jest --runInBand tests/quartz/balance/deposit.test.ts tests/quartz/balance/withdraw.test.ts"
+    "test:user": "RUST_LOG= jest --runInBand tests/quartz/userQuartz.test.ts tests/quartz/userDrift.test.ts",
+    "test:balance": "RUST_LOG= jest --runInBand tests/quartz/balance.test.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.29.0",

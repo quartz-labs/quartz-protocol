@@ -12,17 +12,16 @@ import {
   SystemProgram,
   Connection,
 } from "@solana/web3.js";
-import { IDL as QuartzIDL, Quartz } from "../../../target/types/quartz";
-import { getVaultPda } from "../../utils/helpers";
+import { IDL as QuartzIDL, Quartz } from "../../target/types/quartz";
 import {
-  DRIFT_PROGRAM_ID,
   getDriftState,
   getDriftUser,
   getDriftUserStats,
-} from "../../utils/drift";
-import { closeDriftAccount, closeUser, initDriftAccount, initUser } from "./instructions";
-import { QUARTZ_PROGRAM_ID } from "../../utils/constants";
-import config from "../../config/config";
+  getVaultPda
+} from "../utils/accounts";
+import { closeDriftAccount, closeUser, initDriftAccount, initUser } from "../utils/instructions";
+import { QUARTZ_PROGRAM_ID, DRIFT_PROGRAM_ID } from "../config/constants";
+import config from "../config/config";
 
 
 describe("init_drift_account, close_drift_account", () => {

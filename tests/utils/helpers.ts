@@ -1,7 +1,7 @@
-import { Clock, ProgramTestContext } from "solana-bankrun";
-import { PublicKey } from "@solana/web3.js";
+import { BanksClient, Clock, ProgramTestContext } from "solana-bankrun";
+import { PublicKey, TransactionMessage, VersionedTransaction, TransactionInstruction } from "@solana/web3.js";
 import { web3 } from "@coral-xyz/anchor";
-import { QUARTZ_PROGRAM_ID } from "./constants";
+import { QUARTZ_PROGRAM_ID } from "../config/constants";
 
 export const advanceBySlots = async (
   context: ProgramTestContext,
@@ -19,26 +19,19 @@ export const advanceBySlots = async (
   );
 };
 
-export const toRemainingAccount = (
-  pubkey: PublicKey,
-  isWritable: boolean,
-  isSigner: boolean
+export const processTransaction = async (
+  banksClient: BanksClient,
+  payer: PublicKey,
+  instructions: TransactionInstruction[],
 ) => {
-  return { pubkey, isWritable, isSigner };
-};
+  const latestBlockhash = await banksClient.getLatestBlockhash();
+  const messageV0 = new TransactionMessage({
+      payerKey: payer,
+      recentBlockhash: latestBlockhash[0],
+      instructions: instructions,
+  }).compileToV0Message();
 
-export const getVaultPda = (owner: PublicKey) => {
-  const [vault] = PublicKey.findProgramAddressSync(
-    [Buffer.from("vault"), owner.toBuffer()],
-    new PublicKey(QUARTZ_PROGRAM_ID)
-  );
-  return vault;
-};
-
-export const getVaultSplPda = (vaultPda: PublicKey, mint: PublicKey) => {
-  const [vaultWSol] = web3.PublicKey.findProgramAddressSync(
-    [vaultPda.toBuffer(), mint.toBuffer()],
-    QUARTZ_PROGRAM_ID
-  );
-  return vaultWSol;
+  const tx = new VersionedTransaction(messageV0);
+  const meta = await banksClient.processTransaction(tx);
+  return meta;
 };

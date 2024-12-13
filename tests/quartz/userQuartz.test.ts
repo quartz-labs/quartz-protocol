@@ -3,11 +3,11 @@ import { BankrunProvider } from "anchor-bankrun";
 import { beforeEach, describe, expect, test } from "@jest/globals";
 import { startAnchor, ProgramTestContext, BanksClient } from "solana-bankrun";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
-import { IDL as QuartzIDL, Quartz } from "../../../target/types/quartz";
-import { getVaultPda } from "../../utils/helpers";
-import { closeUser, initUser } from "./instructions";
+import { IDL as QuartzIDL, Quartz } from "../../target/types/quartz";
+import { getVaultPda } from "../utils/accounts";
+import { closeUser, initUser } from "../utils/instructions";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
-import { QUARTZ_PROGRAM_ID } from "../../utils/constants";
+import { QUARTZ_PROGRAM_ID } from "../config/constants";
 
 
 describe("init_user", () => {
