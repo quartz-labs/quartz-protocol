@@ -255,8 +255,8 @@ pub fn collateral_repay_deposit_handler<'info>(
 
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
-    // reduce_only = true to prevent depositing more than the borrowed position
-    drift_deposit(cpi_ctx, drift_market_index, deposit_amount, true)?;
+    // reduce_only = false means that the user can deposit more than the borrowed position (otherwise Jupiter swap might not be exact amount)
+    drift_deposit(cpi_ctx, drift_market_index, deposit_amount, false)?;
 
     // Close vault's ATA
     let cpi_ctx_close = CpiContext::new_with_signer(
