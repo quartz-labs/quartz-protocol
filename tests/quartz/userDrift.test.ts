@@ -210,7 +210,6 @@ describe("init_drift_account, close_drift_account", () => {
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
-      console.log(error);
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
   });
@@ -232,7 +231,6 @@ describe("init_drift_account, close_drift_account", () => {
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
-      console.log(error);
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbc4");
     }
   });
@@ -252,7 +250,6 @@ describe("init_drift_account, close_drift_account", () => {
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
-      console.log(error);
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbc4");
     }
   });
@@ -270,7 +267,6 @@ describe("init_drift_account, close_drift_account", () => {
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
-      console.log(error);
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
   });
@@ -290,7 +286,6 @@ describe("init_drift_account, close_drift_account", () => {
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
-      console.log(error);
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
   });
@@ -310,7 +305,6 @@ describe("init_drift_account, close_drift_account", () => {
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
-      console.log(error);
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
   });
@@ -328,7 +322,6 @@ describe("init_drift_account, close_drift_account", () => {
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
-      console.log(error);
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
   });
@@ -346,7 +339,6 @@ describe("init_drift_account, close_drift_account", () => {
 
       expect(false).toBe(true); // Should not reach this point
     } catch (error: any) {
-      console.log(error);
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
   });
