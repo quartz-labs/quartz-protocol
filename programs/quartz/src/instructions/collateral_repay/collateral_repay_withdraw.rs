@@ -305,7 +305,8 @@ fn validate_account_health<'info>(
     let margin_calculation = get_drift_margin_calculation(
         user, 
         &ctx.accounts.drift_state, 
-        vec![deposit_market_index, withdraw_market_index], 
+        withdraw_market_index, 
+        deposit_market_index,
         &ctx.remaining_accounts
     )?;
 

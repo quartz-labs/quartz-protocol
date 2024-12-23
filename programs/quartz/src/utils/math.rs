@@ -16,10 +16,10 @@ pub(crate) type MarketSet = BTreeSet<u16>;
 pub fn get_drift_margin_calculation<'info>(
     drift_user: &User,
     drift_state: &State,
-    market_indices: Vec<u16>,
+    market_index_asset: u16,
+    market_index_liability: u16,
     remaining_accounts: &'info [AccountInfo<'info>],
 ) -> Result<MarginCalculation> {
-    let liquidation_margin_buffer_ratio = drift_state.liquidation_margin_buffer_ratio;
     let clock = Clock::get()?;
     let now = clock.unix_timestamp;
 
@@ -31,21 +31,22 @@ pub fn get_drift_margin_calculation<'info>(
     } = load_maps(
         remaining_accounts_iter,
         &MarketSet::new(),
-        &get_writable_spot_market_set_from_many(market_indices),
+        &get_writable_spot_market_set_from_many(vec![market_index_asset, market_index_liability]),
         clock.slot,
         Some(drift_state.oracle_guard_rails),
     )?;
+
+    let liquidation_margin_buffer_ratio = drift_state.liquidation_margin_buffer_ratio;
+    let context = MarginContext::liquidation(liquidation_margin_buffer_ratio)
+        .track_market_margin_requirement(MarketIdentifier::spot(market_index_liability))?
+        .fuel_numerator(drift_user, now);
 
     let margin_calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
         drift_user,
         &perp_market_map,
         &spot_market_map,
         &mut oracle_map,
-        MarginContext::liquidation(liquidation_margin_buffer_ratio)
-            .track_market_margin_requirement(MarketIdentifier::spot(
-                1u16,
-            ))?
-            .fuel_numerator(drift_user, now),
+        context
     )?;
 
     Ok(margin_calculation)
@@ -87,8 +88,12 @@ pub fn get_quartz_account_health(
     let total_collateral = margin_calculation.total_collateral;
     let margin_requirement = margin_calculation.margin_requirement;
 
-    if total_collateral < 0 || ACCOUNT_HEALTH_BUFFER_PERCENT >= 100 {
+    if total_collateral <= 0 || ACCOUNT_HEALTH_BUFFER_PERCENT >= 100 {
         return Ok(0);
+    }
+
+    if margin_requirement == 0 {
+        return Ok(100);
     }
 
     let total_collateral_unsigned = total_collateral as u128;
@@ -104,10 +109,6 @@ pub fn get_quartz_account_health(
 
     if margin_requirement > adjusted_total_collateral {
         return Ok(0);
-    }
-
-    if margin_requirement == 0 {
-        return Ok(100);
     }
 
     let health = adjusted_total_collateral
