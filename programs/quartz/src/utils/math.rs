@@ -5,18 +5,18 @@ use drift::{
     math::margin::calculate_margin_requirement_and_total_collateral_and_liability_info, 
     state::{
         margin_calculation::{MarginCalculation, MarginContext, MarketIdentifier}, 
-        spot_market_map::get_writable_spot_market_set, state::State, user::User
+        spot_market_map::get_writable_spot_market_set_from_many, state::State, user::User
     }  
 };
 
-use crate::{constants::ACCOUNT_HEALTH_BUFFER_PERCENT, errors::QuartzError};
+use crate::config::{ACCOUNT_HEALTH_BUFFER_PERCENT, QuartzError};
 
 pub(crate) type MarketSet = BTreeSet<u16>;
 
 pub fn get_drift_margin_calculation<'info>(
     drift_user: &User,
     drift_state: &State,
-    drift_market_index: u16,
+    market_indices: Vec<u16>,
     remaining_accounts: &'info [AccountInfo<'info>],
 ) -> Result<MarginCalculation> {
     let liquidation_margin_buffer_ratio = drift_state.liquidation_margin_buffer_ratio;
@@ -31,7 +31,7 @@ pub fn get_drift_margin_calculation<'info>(
     } = load_maps(
         remaining_accounts_iter,
         &MarketSet::new(),
-        &get_writable_spot_market_set(drift_market_index),
+        &get_writable_spot_market_set_from_many(market_indices),
         clock.slot,
         Some(drift_state.oracle_guard_rails),
     )?;

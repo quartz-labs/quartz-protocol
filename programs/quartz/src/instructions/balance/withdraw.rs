@@ -11,7 +11,9 @@ use drift::{
         user::{User as DriftUser, UserStats as DriftUserStats}
     }
 };
-use crate::state::Vault;
+use crate::{
+    check, config::QuartzError, state::Vault, utils::get_drift_market
+};
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -91,6 +93,13 @@ pub fn withdraw_handler<'info>(
     drift_market_index: u16,
     reduce_only: bool
 ) -> Result<()> {
+    // Validate market index and mint
+    let drift_market = get_drift_market(drift_market_index)?;
+    check!(
+        &ctx.accounts.spl_mint.key().eq(&drift_market.mint),
+        QuartzError::InvalidMint
+    );
+    
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
     let seeds = &[

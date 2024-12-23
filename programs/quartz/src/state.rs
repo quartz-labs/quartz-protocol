@@ -1,5 +1,13 @@
 use anchor_lang::prelude::*;
-use crate::constants::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U8_SIZE};
+use crate::config::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U8_SIZE};
+
+pub struct DriftMarket {
+    pub market_index: u16,
+    pub mint: Pubkey,
+    pub pyth_feed: &'static str,
+    pub pyth_max_age_seconds: u64,
+    pub base_units_per_token: u64
+}
 
 #[account]
 pub struct Vault {

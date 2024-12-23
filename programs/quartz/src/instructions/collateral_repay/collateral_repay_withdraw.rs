@@ -1,8 +1,7 @@
 use anchor_lang::{
     prelude::*, 
     solana_program::{
-        instruction::Instruction, 
-        native_token::LAMPORTS_PER_SOL, 
+        instruction::Instruction,
         sysvar::instructions::{
             self,
             load_current_index_checked, 
@@ -13,7 +12,10 @@ use anchor_lang::{
 };
 use anchor_spl::token::{self, Mint, Token, TokenAccount};
 use drift::{
-    cpi::{accounts::Withdraw as DriftWithdraw, withdraw as drift_withdraw},
+    cpi::{
+        accounts::Withdraw as DriftWithdraw, 
+        withdraw as drift_withdraw
+    },
     program::Drift, 
     state::{
         state::State as DriftState, 
@@ -22,13 +24,9 @@ use drift::{
 };
 use pyth_solana_receiver_sdk::price_update::{get_feed_id_from_hex, PriceUpdateV2};
 use crate::{
-    check, 
-    constants::{COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT, COLLATERAL_REPAY_MAX_SLIPPAGE_BPS, COLLATERAL_REPAY_MIN_HEALTH_RESULT_PERCENT, BASE_UNITS_PER_USDC, DRIFT_MARKET_INDEX_SOL, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, MAX_PRICE_AGE_SECONDS_SOL, MAX_PRICE_AGE_SECONDS_USDC, PYTH_FEED_SOL_USD, PYTH_FEED_USDC_USD, WSOL_MINT}, 
-    errors::QuartzError, 
-    helpers::get_jup_exact_out_route_out_amount, 
-    load_mut, 
-    math::{get_drift_margin_calculation, get_quartz_account_health}, 
-    state::Vault
+    check, config::{
+        QuartzError, COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT, COLLATERAL_REPAY_MAX_SLIPPAGE_BPS, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID
+    }, load_mut, state::{DriftMarket, Vault}, utils::{get_drift_margin_calculation, get_drift_market, get_jup_exact_out_route_out_amount, get_quartz_account_health, normalize_price_exponents}
 };
 
 #[derive(Accounts)]
@@ -63,9 +61,6 @@ pub struct CollateralRepayWithdraw<'info> {
     )]
     pub caller_spl: Box<Account<'info, TokenAccount>>,
 
-    #[account(
-        constraint = spl_mint.key().eq(&WSOL_MINT) @ QuartzError::InvalidRepayMint
-    )]
     pub spl_mint: Box<Account<'info, Mint>>,
 
     #[account(
@@ -225,56 +220,71 @@ fn validate_user_accounts<'info>(
 fn validate_prices<'info>(
     ctx: &Context<'_, '_, '_, 'info, CollateralRepayWithdraw<'info>>,
     deposit_amount: u64,
-    withdraw_amount: u64
+    withdraw_amount: u64,
+    deposit_market: &DriftMarket,
+    withdraw_market: &DriftMarket
 ) -> Result<()> {
     // Get the deposit price, assuming worst case of lowest end of confidence interval
-    let deposit_feed_id: [u8; 32] = get_feed_id_from_hex(PYTH_FEED_USDC_USD)?;
+    let deposit_feed_id: [u8; 32] = get_feed_id_from_hex(deposit_market.pyth_feed)?;
     let deposit_price = ctx.accounts.deposit_price_update.get_price_no_older_than(
         &Clock::get()?, 
-        MAX_PRICE_AGE_SECONDS_USDC,
+        deposit_market.pyth_max_age_seconds,
         &deposit_feed_id
     )?;
     check!(
         deposit_price.price > 0,
         QuartzError::NegativeOraclePrice
     );
-    let deposit_lowest_price = (deposit_price.price as u64).checked_sub(deposit_price.conf)
+    let deposit_lowest_price_raw = (deposit_price.price as u64).checked_sub(deposit_price.conf)
         .ok_or(QuartzError::NegativeOraclePrice)?;
 
     // Get the withdraw price, assuming worst case of highest end of confidence interval
-    let withdraw_feed_id: [u8; 32] = get_feed_id_from_hex(PYTH_FEED_SOL_USD)?;
+    let withdraw_feed_id: [u8; 32] = get_feed_id_from_hex(withdraw_market.pyth_feed)?;
     let withdraw_price = ctx.accounts.withdraw_price_update.get_price_no_older_than(
         &Clock::get()?,
-        MAX_PRICE_AGE_SECONDS_SOL,
+        withdraw_market.pyth_max_age_seconds,
         &withdraw_feed_id
     )?;
     check!(
         withdraw_price.price > 0,
         QuartzError::NegativeOraclePrice
     );
-    let withdraw_highest_price = (withdraw_price.price as u64) + withdraw_price.conf;
+    let withdraw_highest_price_raw = (withdraw_price.price as u64) + withdraw_price.conf;
 
-    // Check that the exponents are the same
-    // TODO - Normalize the exponenets if they don't match
-    check!(
-        withdraw_price.exponent == deposit_price.exponent,
-        QuartzError::InvalidPriceExponent
-    );
+    // Normalize prices to the same exponents
+    let (
+        deposit_lowest_price_normalized,
+        withdraw_highest_price_normalized
+    ) = normalize_price_exponents(
+        deposit_lowest_price_raw,
+        deposit_price.exponent,
+        withdraw_highest_price_raw,
+        withdraw_price.exponent
+    )?;
 
-    // Normalize usdc base units to the same decimals as SOL
-    let deposit_amount_normalized = deposit_amount * (LAMPORTS_PER_SOL / BASE_UNITS_PER_USDC);
+    // Normalize amounts to the same decimals (base units per token)
+    let deposit_amount_normalized: u128 = (deposit_amount as u128)
+        .checked_mul(withdraw_market.base_units_per_token as u128)
+        .ok_or(QuartzError::MathOverflow)?;
+    let withdraw_amount_normalized: u128 = (withdraw_amount as u128)
+        .checked_mul(deposit_market.base_units_per_token as u128)
+        .ok_or(QuartzError::MathOverflow)?;
 
     // Calculate values
-    let deposit_value = deposit_amount_normalized * deposit_lowest_price;
-    let withdraw_value = withdraw_amount * withdraw_highest_price;
+    let deposit_value: u128 = deposit_amount_normalized
+        .checked_mul(deposit_lowest_price_normalized)
+        .ok_or(QuartzError::MathOverflow)?;
+    let withdraw_value: u128 = withdraw_amount_normalized
+        .checked_mul(withdraw_highest_price_normalized)
+        .ok_or(QuartzError::MathOverflow)?;
  
     // Allow for slippage, using integar multiplication to prevent floating point errors
-    let multiplier_deposit = 100 * 100; // 100% x 100bps
-    let multiplier_withdraw = multiplier_deposit - (COLLATERAL_REPAY_MAX_SLIPPAGE_BPS as u128);
+    let slippage_multiplier_deposit: u128 = 100 * 100; // 100% x 100bps
+    let slippage_multiplier_withdraw: u128 = slippage_multiplier_deposit - (COLLATERAL_REPAY_MAX_SLIPPAGE_BPS as u128);
 
-    let deposit_slippage_check_value = (deposit_value as u128).checked_mul(multiplier_deposit)
+    let deposit_slippage_check_value = deposit_value.checked_mul(slippage_multiplier_deposit)
         .ok_or(QuartzError::MathOverflow)?;
-    let withdraw_slippage_check_value = (withdraw_value as u128).checked_mul(multiplier_withdraw)
+    let withdraw_slippage_check_value = withdraw_value.checked_mul(slippage_multiplier_withdraw)
         .ok_or(QuartzError::MathOverflow)?;
 
     check!(
@@ -288,20 +298,21 @@ fn validate_prices<'info>(
 #[inline(never)]
 fn validate_account_health<'info>(
     ctx: &Context<'_, '_, 'info, 'info, CollateralRepayWithdraw<'info>>,
-    drift_market_index: u16
+    deposit_market_index: u16,
+    withdraw_market_index: u16
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
     let margin_calculation = get_drift_margin_calculation(
         user, 
         &ctx.accounts.drift_state, 
-        drift_market_index, 
+        vec![deposit_market_index, withdraw_market_index], 
         &ctx.remaining_accounts
     )?;
 
     let quartz_account_health = get_quartz_account_health(margin_calculation)?;
 
     check!(
-        quartz_account_health >= COLLATERAL_REPAY_MIN_HEALTH_RESULT_PERCENT,
+        quartz_account_health > 0,
         QuartzError::CollateralRepayHealthTooLow
     );
 
@@ -317,11 +328,6 @@ pub fn collateral_repay_withdraw_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, CollateralRepayWithdraw<'info>>,
     drift_market_index: u16
 ) -> Result<()> {
-    check!(
-        drift_market_index == DRIFT_MARKET_INDEX_SOL,
-        QuartzError::UnsupportedDriftMarketIndex
-    );
-
     let index: usize = load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
     let start_instruction = load_instruction_at_checked(index - 3, &ctx.accounts.instructions.to_account_info())?;
     let swap_instruction = load_instruction_at_checked(index - 2, &ctx.accounts.instructions.to_account_info())?;
@@ -331,11 +337,17 @@ pub fn collateral_repay_withdraw_handler<'info>(
 
     validate_user_accounts(&ctx, &start_instruction, &deposit_instruction)?;
 
+    let withdraw_market = get_drift_market(drift_market_index)?;
+    check!(
+        &ctx.accounts.spl_mint.key().eq(&withdraw_market.mint),
+        QuartzError::InvalidMint
+    );
+
     // Validate mint and ATA are the same as swap
     let swap_source_mint = swap_instruction.accounts[5].pubkey;
     check!(
         swap_source_mint.eq(&ctx.accounts.spl_mint.key()),
-        QuartzError::InvalidRepayMint
+        QuartzError::InvalidMint
     );
 
     let swap_source_token_account = swap_instruction.accounts[2].pubkey;
@@ -353,7 +365,9 @@ pub fn collateral_repay_withdraw_handler<'info>(
 
     // Validate values of deposit_amount and withdraw_amount are within slippage
     let deposit_amount = get_jup_exact_out_route_out_amount(&swap_instruction)?;
-    validate_prices(&ctx, deposit_amount, withdraw_amount)?;
+    let deposit_market_index = u16::from_le_bytes(deposit_instruction.data[8..10].try_into().unwrap());
+    let deposit_market = get_drift_market(deposit_market_index)?;
+    validate_prices(&ctx, deposit_amount, withdraw_amount, deposit_market, withdraw_market)?;
 
     let owner = ctx.accounts.owner.key();
     let vault_seeds = &[
@@ -411,8 +425,9 @@ pub fn collateral_repay_withdraw_handler<'info>(
     token::close_account(cpi_ctx_close)?;
 
     // Validate account health if the owner isn't the caller
+
     if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
-        validate_account_health(&ctx, drift_market_index)?;
+        validate_account_health(&ctx, deposit_market_index, withdraw_market.market_index)?;
     }
 
     Ok(())

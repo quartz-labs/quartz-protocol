@@ -8,7 +8,10 @@ use anchor_lang::{
 };
 use anchor_spl::{associated_token::AssociatedToken, token::{Mint, Token, TokenAccount}};
 use crate::{
-    check, constants::{JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID}, errors::QuartzError, helpers::get_jup_exact_out_route_platform_fees, state::Vault
+    check, 
+    config::{JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, QuartzError}, 
+    utils::get_jup_exact_out_route_platform_fees, 
+    state::Vault
 };
 
 #[derive(Accounts)]
@@ -115,7 +118,7 @@ fn validate_swap_data<'info>(
     let swap_source_mint = swap_instruction.accounts[5].pubkey;
     check!(
         swap_source_mint.eq(&ctx.accounts.withdraw_mint.key()),
-        QuartzError::InvalidRepayMint
+        QuartzError::InvalidMint
     );
 
     let swap_source_token_account = swap_instruction.accounts[2].pubkey;

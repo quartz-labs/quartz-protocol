@@ -12,7 +12,7 @@ use anchor_lang::{
 };
 use anchor_spl::{
     associated_token::AssociatedToken, 
-    token::{self, Mint, Token, TokenAccount}
+    token::{self, Mint, Token, TokenAccount},
 };
 use drift::{
     cpi::{
@@ -26,13 +26,7 @@ use drift::{
     program::Drift
 };
 use crate::{
-    check, 
-    constants::{DRIFT_MARKET_INDEX_USDC, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, USDC_MINT}, 
-    errors::QuartzError, 
-    helpers::get_jup_exact_out_route_out_amount, 
-    load_mut,
-    math::{get_drift_margin_calculation, get_quartz_account_health}, 
-    state::Vault
+    check, config::{QuartzError, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID}, load_mut, state::Vault, utils::{get_drift_margin_calculation, get_drift_market, get_jup_exact_out_route_out_amount, get_quartz_account_health}
 };
 
 #[derive(Accounts)]
@@ -68,9 +62,6 @@ pub struct CollateralRepayDeposit<'info> {
     )]
     pub caller_spl: Box<Account<'info, TokenAccount>>,
 
-    #[account(
-        constraint = spl_mint.key().eq(&USDC_MINT) @ QuartzError::InvalidRepayMint
-    )]
     pub spl_mint: Box<Account<'info, Mint>>,
 
     #[account(
@@ -156,16 +147,37 @@ fn validate_instruction_order<'info>(
     Ok(())
 }
 
+fn validate_drift_markets<'info>(
+    drift_market_index: u16,
+    spl_mint: &Pubkey,
+    withdraw_instruction: &Instruction
+) -> Result<(u16, u16)> {
+    let drift_market = get_drift_market(drift_market_index)?;
+    check!(
+        spl_mint.eq(&drift_market.mint),
+        QuartzError::InvalidMint
+    );
+
+    let withdraw_drift_market_index = u16::from_le_bytes(withdraw_instruction.data[8..10].try_into().unwrap());
+    check!(
+        !drift_market.market_index.eq(&withdraw_drift_market_index),
+        QuartzError::IdenticalCollateralRepayMarkets
+    );
+
+    Ok((drift_market_index, withdraw_drift_market_index))
+}
+
 #[inline(never)]
 fn validate_account_health<'info>(
     ctx: &Context<'_, '_, 'info, 'info, CollateralRepayDeposit<'info>>,
-    drift_market_index: u16
+    deposit_market_index: u16,
+    withdraw_market_index: u16
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
     let margin_calculation = get_drift_margin_calculation(
         user, 
         &ctx.accounts.drift_state, 
-        drift_market_index, 
+        vec![deposit_market_index, withdraw_market_index], 
         &ctx.remaining_accounts
     )?;
 
@@ -183,11 +195,6 @@ pub fn collateral_repay_deposit_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, CollateralRepayDeposit<'info>>,
     drift_market_index: u16
 ) -> Result<()> {
-    check!(
-        drift_market_index == DRIFT_MARKET_INDEX_USDC,
-        QuartzError::UnsupportedDriftMarketIndex
-    );
-
     let index: usize = load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
     let start_instruction = load_instruction_at_checked(index - 2, &ctx.accounts.instructions.to_account_info())?;
     let swap_instruction = load_instruction_at_checked(index - 1, &ctx.accounts.instructions.to_account_info())?;
@@ -195,11 +202,16 @@ pub fn collateral_repay_deposit_handler<'info>(
 
     validate_instruction_order(&start_instruction, &swap_instruction, &withdraw_instruction)?;
 
-    // Validate mint
+    let (
+        deposit_market_index, 
+        withdraw_market_index
+    ) = validate_drift_markets(drift_market_index, &ctx.accounts.spl_mint.key(), &withdraw_instruction)?;
+
+    // Validate mints and ATAs
     let swap_destination_mint = swap_instruction.accounts[6].pubkey;
     check!(
         swap_destination_mint.eq(&ctx.accounts.spl_mint.key()),
-        QuartzError::InvalidRepayMint
+        QuartzError::InvalidMint
     );
 
     let swap_destination_token_account = swap_instruction.accounts[3].pubkey;
@@ -210,7 +222,7 @@ pub fn collateral_repay_deposit_handler<'info>(
 
     // Validate account health if the owner isn't the caller
     if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
-        validate_account_health(&ctx, drift_market_index)?;
+        validate_account_health(&ctx, deposit_market_index, withdraw_market_index)?;
     }
 
     let vault_bump = ctx.accounts.vault.bump;

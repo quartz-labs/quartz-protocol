@@ -5,7 +5,7 @@ pub enum QuartzError {
     #[msg("Illegal collateral repay instructions")]
     IllegalCollateralRepayInstructions,
     #[msg("Invalid mint provided")]
-    InvalidRepayMint,
+    InvalidMint,
     #[msg("Price slippage is above maximum")]
     MaxSlippageExceeded,
     #[msg("Swap platform fee must be zero")]
@@ -20,8 +20,8 @@ pub enum QuartzError {
     InvalidStartBalance,
     #[msg("Price received from oracle should be a positive number")]
     NegativeOraclePrice,
-    #[msg("Unsupported Drift market index")]
-    UnsupportedDriftMarketIndex,
+    #[msg("Invalid market index")]
+    InvalidMarketIndex,
     #[msg("Math overflow")]
     MathOverflow,
     #[msg("Price exponents received from oracle should be the same")]
@@ -32,8 +32,10 @@ pub enum QuartzError {
     DeserializationError,
     #[msg("Account health is not low enough for collateral_repay")]
     NotReachedCollateralRepayThreshold,
-    #[msg("Not enough collateral sold in collateral_repay")]
-    CollateralRepayHealthTooLow,
     #[msg("Too much collateral sold in collateral_repay")]
     CollateralRepayHealthTooHigh,
+    #[msg("User health is still zero after collateral_repay")]
+    CollateralRepayHealthTooLow,
+    #[msg("Collateral repay deposit and withdraw markets must be different")]
+    IdenticalCollateralRepayMarkets,
 }

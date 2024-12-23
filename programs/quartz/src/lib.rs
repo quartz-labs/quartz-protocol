@@ -1,11 +1,8 @@
 use anchor_lang::prelude::*;
 
-mod macros;
 mod state;
-mod errors;
-mod constants;
-mod math;
-mod helpers;
+mod utils;
+mod config;
 mod instructions;
 use instructions::*;
 
