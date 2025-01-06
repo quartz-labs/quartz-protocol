@@ -408,17 +408,19 @@ pub fn collateral_repay_withdraw_handler<'info>(
     drift_withdraw(cpi_ctx, drift_market_index, withdraw_amount, true)?;
 
     // Transfer tokens from vault's ATA to caller's ATA
-    token::transfer(
+    token::transfer_checked(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(), 
-            token::Transfer { 
+            token::TransferChecked { 
                 from: ctx.accounts.vault_spl.to_account_info(), 
                 to: ctx.accounts.caller_spl.to_account_info(), 
-                authority: ctx.accounts.vault.to_account_info()
+                authority: ctx.accounts.vault.to_account_info(),
+                mint: ctx.accounts.spl_mint.to_account_info(),
             }, 
             signer_seeds_vault
         ),
-        withdraw_amount
+        withdraw_amount,
+        ctx.accounts.spl_mint.decimals
     )?;
 
     // Close vault's ATA

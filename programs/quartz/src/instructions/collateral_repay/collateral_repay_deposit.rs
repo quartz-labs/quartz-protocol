@@ -245,16 +245,18 @@ pub fn collateral_repay_deposit_handler<'info>(
     let deposit_amount = get_jup_exact_out_route_out_amount(&swap_instruction)?;
 
     // Transfer tokens from callers's ATA to vault's ATA
-    token::transfer(
+    token::transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(), 
-            token::Transfer { 
+            token::TransferChecked { 
                 from: ctx.accounts.caller_spl.to_account_info(), 
                 to: ctx.accounts.vault_spl.to_account_info(), 
-                authority: ctx.accounts.caller.to_account_info()
+                authority: ctx.accounts.caller.to_account_info(),
+                mint: ctx.accounts.spl_mint.to_account_info(),
             }
         ),
-        deposit_amount
+        deposit_amount,
+        ctx.accounts.spl_mint.decimals
     )?;
 
     // Drift Deposit CPI

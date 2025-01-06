@@ -139,17 +139,19 @@ pub fn withdraw_handler<'info>(
 
     // Transfer tokens from vault's ATA to owner's ATA
 
-    token::transfer(
+    token::transfer_checked(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(), 
-            token::Transfer { 
+            token::TransferChecked { 
                 from: ctx.accounts.vault_spl.to_account_info(), 
                 to: ctx.accounts.owner_spl.to_account_info(), 
-                authority: ctx.accounts.vault.to_account_info()
+                authority: ctx.accounts.vault.to_account_info(),
+                mint: ctx.accounts.spl_mint.to_account_info(),
             }, 
             signer_seeds
         ),
-        amount_base_units
+        amount_base_units,
+        ctx.accounts.spl_mint.decimals
     )?;
 
     // Close vault's ATA
