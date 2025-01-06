@@ -3,8 +3,10 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { BanksClient } from "solana-bankrun";
 import { Quartz } from "../../target/types/quartz";
 import { processTransaction } from "./helpers";
-import { WSOL_MINT } from "../config/constants";
+import { DRIFT_ORACLE_SOL, DRIFT_SPOT_MARKET_SOL, WSOL_MINT } from "../config/constants";
 import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction } from "@solana/spl-token";
+import { toRemainingAccount } from "./accounts";
+import { AccountMeta } from "./interfaces";
 
 
 export interface InitUserAccounts {
@@ -119,11 +121,13 @@ export const deposit = async (
     banksClient: BanksClient,
     amountBaseUnits: number,
     marketIndex: number,
-    accounts: DepositAccouts
+    accounts: DepositAccouts,
+    remainingAccounts: AccountMeta[]
 ) => {
     const ix = await quartzProgram.methods
         .deposit(new BN(amountBaseUnits), marketIndex, false)
         .accounts(accounts)
+        .remainingAccounts(remainingAccounts)
         .instruction();
 
     const meta = await processTransaction(banksClient, accounts.owner, [ix]);
@@ -153,11 +157,13 @@ export const withdraw = async (
     banksClient: BanksClient,
     amountBaseUnits: number,
     marketIndex: number,
-    accounts: WithdrawAccounts
+    accounts: WithdrawAccounts,
+    remainingAccounts: AccountMeta[]
 ) => {
     const ix = await quartzProgram.methods
-        .withdraw(new BN(amountBaseUnits), marketIndex, true)
+        .withdraw(new BN(amountBaseUnits), marketIndex, false)
         .accounts(accounts)
+        .remainingAccounts(remainingAccounts)
         .instruction();
 
     const meta = await processTransaction(banksClient, accounts.owner, [ix]);
@@ -192,4 +198,15 @@ export const makeWrapSolIxs = async (
     const ix_syncNative = createSyncNativeInstruction(accounts.walletWsol);  
 
     return [ix_createWSolAta, ix_wrapSol, ix_syncNative];
+}
+
+export const wrapSol = async (
+    quartzProgram: Program<Quartz>,
+    banksClient: BanksClient,
+    amount: number,
+    accounts: WrapSolAccounts
+) => {
+    const ixs = await makeWrapSolIxs(quartzProgram, banksClient, amount, accounts);
+    const meta = await processTransaction(banksClient, accounts.user, ixs);
+    return meta;
 }

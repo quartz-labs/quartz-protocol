@@ -232,11 +232,77 @@ describe("deposit, withdraw", () => {
       expect(error.message).toContain("Error processing Instruction 3: custom program error: 0x1");
     }
   });
+
+  test("Should withdraw lamports", async () => {
+    const amountDeposit = 10 * LAMPORTS_PER_SOL;
+    const amountWithdraw = 5 * LAMPORTS_PER_SOL;
+
+    const ixs_wrapSol = await makeWrapSolIxs(quartzProgram, banksClient, amountDeposit, {
+      user: user.publicKey,
+      walletWsol: walletWsol,
+    });
+
+    const ix_deposit = await quartzProgram.methods
+      .deposit(new BN(amountDeposit), DRIFT_MARKET_INDEX_SOL, false)
+      .accounts({
+        vault: vault,
+        vaultSpl: getVaultSplPda(vault, WSOL_MINT),
+        owner: user.publicKey,
+        ownerSpl: walletWsol,
+        splMint: WSOL_MINT,
+        driftUser: driftUser,
+        driftUserStats: driftUserStats,
+        driftState: driftState,
+        spotMarketVault: solSpotMarket,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
+        driftProgram: DRIFT_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts([
+        toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
+        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+      ])
+      .instruction();
+
+    const ix_withdraw = await quartzProgram.methods
+      .withdraw(new BN(amountWithdraw), DRIFT_MARKET_INDEX_SOL, true)
+      .accounts({
+        vault: vault,
+        vaultSpl: getVaultSplPda(vault, WSOL_MINT),
+        owner: user.publicKey,
+        ownerSpl: walletWsol,
+        splMint: WSOL_MINT,
+        driftUser: driftUser,
+        driftUserStats: driftUserStats,
+        driftState: driftState,
+        driftSigner: DRIFT_SIGNER,
+        spotMarketVault: solSpotMarket,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
+        driftProgram: DRIFT_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts([
+        toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
+        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+      ])
+      .instruction();
+
+    const meta = await processTransaction(banksClient, user.publicKey, [...ixs_wrapSol, ix_deposit, ix_withdraw]);
+    
+    expect(meta.logMessages[56]).toBe("Program log: Instruction: Withdraw");
+    expect(meta.logMessages[67]).toBe("Program log: Instruction: Transfer");
+    expect(meta.logMessages[71]).toBe("Program dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH success");
+    expect(meta.logMessages[81]).toBe("Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success");
+
+    // TODO - Add Drift balance check
+  });
 });
 
 
 // TODO - Add more deposit tests
-// TODO - Add withdraw tests
+// TODO - Add more withdraw tests
 
 // describe("Quartz Balance", () => {
 //   //all the things that need to be done before each test

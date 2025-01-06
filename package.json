@@ -3,10 +3,13 @@
     "build": "anchor build",
     "test": "RUST_LOG= jest --runInBand",
     "test:user": "RUST_LOG= jest --runInBand tests/quartz/userQuartz.test.ts tests/quartz/userDrift.test.ts",
-    "test:balance": "RUST_LOG= jest --runInBand tests/quartz/balance.test.ts"
+    "test:balance": "RUST_LOG= jest --runInBand tests/quartz/balance.test.ts",
+    "test:collateralRepay": "RUST_LOG= jest --runInBand tests/quartz/collateralRepay.test.ts",
+    "test:repay": "RUST_LOG= jest --runInBand tests/quartz/collateralRepay.test.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.29.0",
+    "@jup-ag/api": "^6.0.32",
     "@solana/spl-token": "^0.4.8",
     "anchor-bankrun": "^0.3.0",
     "dotenv": "^16.4.5",
