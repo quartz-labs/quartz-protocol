@@ -10,7 +10,14 @@ use anchor_lang::{
     }, 
     Discriminator
 };
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use anchor_spl::{
+    token, 
+    token_interface::{
+        TokenInterface, 
+        TokenAccount as TokenAccountInterface, 
+        Mint as MintInterface
+    }
+};
 use drift::{
     cpi::{
         accounts::Withdraw as DriftWithdraw, 
@@ -46,7 +53,7 @@ pub struct CollateralRepayWithdraw<'info> {
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<Account<'info, TokenAccount>>,
+    pub vault_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
     /// CHECK: Can be any account, once it has a Vault
     pub owner: UncheckedAccount<'info>,
@@ -59,9 +66,9 @@ pub struct CollateralRepayWithdraw<'info> {
         associated_token::mint = spl_mint,
         associated_token::authority = caller
     )]
-    pub caller_spl: Box<Account<'info, TokenAccount>>,
+    pub caller_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
-    pub spl_mint: Box<Account<'info, Mint>>,
+    pub spl_mint: Box<InterfaceAccount<'info, MintInterface>>,
 
     #[account(
         mut,
@@ -90,7 +97,7 @@ pub struct CollateralRepayWithdraw<'info> {
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     pub drift_signer: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     pub drift_program: Program<'info, Drift>,
 

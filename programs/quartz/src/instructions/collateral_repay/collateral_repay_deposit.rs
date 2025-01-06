@@ -12,7 +12,12 @@ use anchor_lang::{
 };
 use anchor_spl::{
     associated_token::AssociatedToken, 
-    token::{self, Mint, Token, TokenAccount},
+    token, 
+    token_interface::{
+        TokenInterface, 
+        TokenAccount as TokenAccountInterface, 
+        Mint as MintInterface
+    }
 };
 use drift::{
     cpi::{
@@ -47,7 +52,7 @@ pub struct CollateralRepayDeposit<'info> {
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<Account<'info, TokenAccount>>,
+    pub vault_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
     /// CHECK: Can be any account, once it has a Vault
     pub owner: UncheckedAccount<'info>,
@@ -60,9 +65,9 @@ pub struct CollateralRepayDeposit<'info> {
         associated_token::mint = spl_mint,
         associated_token::authority = caller
     )]
-    pub caller_spl: Box<Account<'info, TokenAccount>>,
+    pub caller_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
-    pub spl_mint: Box<Account<'info, Mint>>,
+    pub spl_mint: Box<InterfaceAccount<'info, MintInterface>>,
 
     #[account(
         mut,
@@ -88,7 +93,7 @@ pub struct CollateralRepayDeposit<'info> {
     #[account(mut)]
     pub spot_market_vault: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
 

@@ -1,6 +1,12 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken, token::{self, Mint, Token, TokenAccount}
+    associated_token::AssociatedToken, 
+    token, 
+    token_interface::{
+        TokenInterface, 
+        TokenAccount as TokenAccountInterface, 
+        Mint as MintInterface
+    }
 };
 use drift::{
     program::Drift,
@@ -33,7 +39,7 @@ pub struct Withdraw<'info> {
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<Account<'info, TokenAccount>>,
+    pub vault_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -43,9 +49,9 @@ pub struct Withdraw<'info> {
         associated_token::mint = spl_mint,
         associated_token::authority = owner
     )]
-    pub owner_spl: Box<Account<'info, TokenAccount>>,
+    pub owner_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
-    pub spl_mint: Box<Account<'info, Mint>>,
+    pub spl_mint: Box<InterfaceAccount<'info, MintInterface>>,
 
     #[account(
         mut,
@@ -78,7 +84,7 @@ pub struct Withdraw<'info> {
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     pub drift_signer: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
 

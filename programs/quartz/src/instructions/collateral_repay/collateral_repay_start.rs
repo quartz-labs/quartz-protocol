@@ -6,7 +6,14 @@ use anchor_lang::{
         sysvar::instructions::{self, load_current_index_checked, load_instruction_at_checked}
     }
 };
-use anchor_spl::{associated_token::AssociatedToken, token::{Mint, Token, TokenAccount}};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token_interface::{
+        TokenInterface, 
+        TokenAccount as TokenAccountInterface, 
+        Mint as MintInterface
+    }
+};
 use crate::{
     check, 
     config::{JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, QuartzError}, 
@@ -24,9 +31,9 @@ pub struct CollateralRepayStart<'info> {
         associated_token::mint = withdraw_mint,
         associated_token::authority = caller
     )]
-    pub caller_withdraw_spl: Box<Account<'info, TokenAccount>>,
+    pub caller_withdraw_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
-    pub withdraw_mint: Box<Account<'info, Mint>>,
+    pub withdraw_mint: Box<InterfaceAccount<'info, MintInterface>>,
 
     #[account(
         mut,
@@ -44,12 +51,12 @@ pub struct CollateralRepayStart<'info> {
         token::mint = withdraw_mint,
         token::authority = vault
     )]
-    pub vault_withdraw_spl: Box<Account<'info, TokenAccount>>,
+    pub vault_withdraw_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
     /// CHECK: Can be any account, once it has a Vault
     pub owner: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
 
