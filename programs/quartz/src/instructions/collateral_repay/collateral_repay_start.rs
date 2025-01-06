@@ -29,7 +29,8 @@ pub struct CollateralRepayStart<'info> {
     #[account(
         mut,
         associated_token::mint = withdraw_mint,
-        associated_token::authority = caller
+        associated_token::authority = caller,
+        associated_token::token_program = token_program
     )]
     pub caller_withdraw_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 

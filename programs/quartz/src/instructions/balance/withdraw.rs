@@ -47,7 +47,8 @@ pub struct Withdraw<'info> {
     #[account(
         mut,
         associated_token::mint = spl_mint,
-        associated_token::authority = owner
+        associated_token::authority = owner,
+        associated_token::token_program = token_program
     )]
     pub owner_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 

@@ -63,7 +63,8 @@ pub struct CollateralRepayDeposit<'info> {
     #[account(
         mut,
         associated_token::mint = spl_mint,
-        associated_token::authority = caller
+        associated_token::authority = caller,
+        associated_token::token_program = token_program
     )]
     pub caller_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
 
