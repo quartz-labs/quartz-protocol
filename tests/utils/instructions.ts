@@ -177,17 +177,21 @@ export interface WrapSolAccounts {
 }
 
 export const makeWrapSolIxs = async (
-    quartzProgram: Program<Quartz>,
     banksClient: BanksClient,
     amount: number,
-    accounts: WrapSolAccounts
+    accounts: WrapSolAccounts,
 ) => {
-    const ix_createWSolAta = createAssociatedTokenAccountInstruction(
-        accounts.user,
-        accounts.walletWsol,
-        accounts.user,
-        WSOL_MINT
-    );
+    const oix_createWSolAta = [];
+    const ataInfo = await banksClient.getAccount(accounts.walletWsol);
+    if (!ataInfo) {
+        const ix_createWSolAta = createAssociatedTokenAccountInstruction(
+            accounts.user,
+            accounts.walletWsol,
+            accounts.user,
+            WSOL_MINT
+        );
+        oix_createWSolAta.push(ix_createWSolAta);
+    }
 
     const ix_wrapSol = SystemProgram.transfer({
         fromPubkey: accounts.user,
@@ -197,7 +201,7 @@ export const makeWrapSolIxs = async (
 
     const ix_syncNative = createSyncNativeInstruction(accounts.walletWsol);  
 
-    return [ix_createWSolAta, ix_wrapSol, ix_syncNative];
+    return [...oix_createWSolAta, ix_wrapSol, ix_syncNative];
 }
 
 export const wrapSol = async (
@@ -206,7 +210,7 @@ export const wrapSol = async (
     amount: number,
     accounts: WrapSolAccounts
 ) => {
-    const ixs = await makeWrapSolIxs(quartzProgram, banksClient, amount, accounts);
+    const ixs = await makeWrapSolIxs(banksClient, amount, accounts);
     const meta = await processTransaction(banksClient, accounts.user, ixs);
     return meta;
 }

@@ -206,6 +206,8 @@ export async function setupAddressLookupTable(
   );
 
   const meta = await processTransaction(banksClient, authority, [ix_initLookupTable, ...ixs_extendLookupTable]);
+  await context.warpToSlot(newSlot + BigInt(10));
+
   return {
     meta,
     lookupTable
@@ -219,8 +221,17 @@ export async function fetchAddressLookupTable(
   const lookupTableAccount = await banksClient.getAccount(addressLookupTable);
   if (!lookupTableAccount) throw new Error("Address lookup table not found");
 
+  const state = AddressLookupTableAccount.deserialize(lookupTableAccount.data);
+  if (!state) throw new Error("Address lookup table state not found");
+  
   return new AddressLookupTableAccount({
     key: addressLookupTable,
-    state: AddressLookupTableAccount.deserialize(lookupTableAccount.data)
+    state: {
+      deactivationSlot: state.deactivationSlot,
+      lastExtendedSlot: state.lastExtendedSlot,
+      lastExtendedSlotStartIndex: state.lastExtendedSlotStartIndex,
+      authority: state.authority,
+      addresses: state.addresses.map(address => new PublicKey(address.toBytes())),
+    }
   });
 }

@@ -228,10 +228,13 @@ describe("collateral repay", () => {
     const jupiterQuote = (await response.json()) as QuoteResponse;
     const collateralRequiredForSwap = Math.ceil(Number(jupiterQuote.inAmount) * (1 + (slippageBps / 10_000)));
 
-    const ixs_wrapSol = await makeWrapSolIxs(quartzProgram, banksClient, collateralRequiredForSwap, {
+    const ixs_wrapSol = await makeWrapSolIxs(banksClient, collateralRequiredForSwap, {
       user: user.publicKey,
       walletWsol: walletWsol,
     });
+
+    console.log(collateralRequiredForSwap);
+    console.log(new BN(collateralRequiredForSwap).toString());
 
     const ix_collateralRepayStart = await quartzProgram.methods
       .collateralRepayStart(new BN(collateralRequiredForSwap))
@@ -310,18 +313,18 @@ describe("collateral repay", () => {
       ])
       .instruction();
 
+    const [ blockhash ] = await banksClient.getLatestBlockhash();
     const lookupTable = await fetchAddressLookupTable(banksClient, quartzLookupTable);
     const messagev0 = new TransactionMessage({
       payerKey: user.publicKey,
-      recentBlockhash: (await connection.getLatestBlockhash()).blockhash,
+      recentBlockhash: blockhash,
       instructions: [
         ...ixs_wrapSol, 
-        ix_collateralRepayStart, 
-        ix_jupiterSwap, 
+        ix_collateralRepayStart,
         ix_collateralRepayDeposit, 
         ix_collateralRepayWithdraw
       ]
-    }).compileToV0Message([lookupTable, ...jupiterLookupTables]);
+    }).compileToV0Message([lookupTable]);
     const transaction = new VersionedTransaction(messagev0);
     const meta = await banksClient.processTransaction(transaction);
 
