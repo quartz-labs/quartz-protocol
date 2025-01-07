@@ -11,12 +11,15 @@ use anchor_lang::{
     Discriminator
 };
 use anchor_spl::{
-    associated_token::AssociatedToken, 
-    token, 
+    associated_token::AssociatedToken,
     token_interface::{
+        TransferChecked,
+        transfer_checked,
         TokenInterface, 
-        TokenAccount as TokenAccountInterface, 
-        Mint as MintInterface
+        TokenAccount, 
+        Mint,
+        CloseAccount,
+        close_account
     }
 };
 use drift::{
@@ -52,7 +55,7 @@ pub struct CollateralRepayDeposit<'info> {
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
+    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Can be any account, once it has a Vault
     pub owner: UncheckedAccount<'info>,
@@ -66,9 +69,9 @@ pub struct CollateralRepayDeposit<'info> {
         associated_token::authority = caller,
         associated_token::token_program = token_program
     )]
-    pub caller_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
+    pub caller_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub spl_mint: Box<InterfaceAccount<'info, MintInterface>>,
+    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mut,
@@ -245,10 +248,10 @@ pub fn collateral_repay_deposit_handler<'info>(
     let deposit_amount = get_jup_exact_out_route_out_amount(&swap_instruction)?;
 
     // Transfer tokens from callers's ATA to vault's ATA
-    token::transfer_checked(
+    transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(), 
-            token::TransferChecked { 
+            TransferChecked { 
                 from: ctx.accounts.caller_spl.to_account_info(), 
                 to: ctx.accounts.vault_spl.to_account_info(), 
                 authority: ctx.accounts.caller.to_account_info(),
@@ -282,14 +285,14 @@ pub fn collateral_repay_deposit_handler<'info>(
     // Close vault's ATA
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
-        token::CloseAccount {
+        CloseAccount {
             account: ctx.accounts.vault_spl.to_account_info(),
             destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
         signer_seeds
     );
-    token::close_account(cpi_ctx_close)?;
+    close_account(cpi_ctx_close)?;
 
     Ok(())
 }

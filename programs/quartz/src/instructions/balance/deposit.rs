@@ -1,11 +1,14 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken, 
-    token, 
+    associated_token::AssociatedToken,
     token_interface::{
+        TransferChecked,
+        transfer_checked,
         TokenInterface, 
-        TokenAccount as TokenAccountInterface, 
-        Mint as MintInterface
+        TokenAccount, 
+        Mint,
+        CloseAccount,
+        close_account
     }
 };
 use drift::{
@@ -39,7 +42,7 @@ pub struct Deposit<'info> {
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
+    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -50,9 +53,9 @@ pub struct Deposit<'info> {
         associated_token::authority = owner,
         associated_token::token_program = token_program
     )]
-    pub owner_spl: Box<InterfaceAccount<'info, TokenAccountInterface>>,
+    pub owner_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub spl_mint: Box<InterfaceAccount<'info, MintInterface>>,
+    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mut,
@@ -115,10 +118,10 @@ pub fn deposit_handler<'info>(
 
     // Transfer tokens from owner's ATA to vault's ATA
 
-    token::transfer_checked(
+    transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(), 
-            token::TransferChecked { 
+            TransferChecked { 
                 from: ctx.accounts.owner_spl.to_account_info(), 
                 to: ctx.accounts.vault_spl.to_account_info(), 
                 authority: ctx.accounts.owner.to_account_info(),
@@ -153,14 +156,14 @@ pub fn deposit_handler<'info>(
 
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
-        token::CloseAccount {
+        CloseAccount {
             account: ctx.accounts.vault_spl.to_account_info(),
             destination: ctx.accounts.owner.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
         signer_seeds
     );
-    token::close_account(cpi_ctx_close)?;
+    close_account(cpi_ctx_close)?;
 
     Ok(())
 }
