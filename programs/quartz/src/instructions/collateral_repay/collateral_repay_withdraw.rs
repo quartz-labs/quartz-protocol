@@ -32,7 +32,7 @@ use drift::{
 use pyth_solana_receiver_sdk::price_update::{get_feed_id_from_hex, PriceUpdateV2};
 use crate::{
     check, config::{
-        QuartzError, COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT, COLLATERAL_REPAY_MAX_SLIPPAGE_BPS, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID
+        QuartzError, COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT, COLLATERAL_REPAY_MAX_SLIPPAGE_BPS, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, PYTH_MAX_PRICE_AGE_SECONDS
     }, load_mut, state::{DriftMarket, Vault}, utils::{get_drift_margin_calculation, get_drift_market, get_jup_exact_out_route_out_amount, get_quartz_account_health, normalize_price_exponents}
 };
 
@@ -236,7 +236,7 @@ fn validate_prices<'info>(
     let deposit_feed_id: [u8; 32] = get_feed_id_from_hex(deposit_market.pyth_feed)?;
     let deposit_price = ctx.accounts.deposit_price_update.get_price_no_older_than(
         &Clock::get()?, 
-        deposit_market.pyth_max_age_seconds,
+        PYTH_MAX_PRICE_AGE_SECONDS,
         &deposit_feed_id
     )?;
     check!(
@@ -250,7 +250,7 @@ fn validate_prices<'info>(
     let withdraw_feed_id: [u8; 32] = get_feed_id_from_hex(withdraw_market.pyth_feed)?;
     let withdraw_price = ctx.accounts.withdraw_price_update.get_price_no_older_than(
         &Clock::get()?,
-        withdraw_market.pyth_max_age_seconds,
+        PYTH_MAX_PRICE_AGE_SECONDS,
         &withdraw_feed_id
     )?;
     check!(
