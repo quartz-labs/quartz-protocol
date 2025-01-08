@@ -11,8 +11,16 @@ use anchor_lang::{
     Discriminator
 };
 use anchor_spl::{
-    associated_token::AssociatedToken, 
-    token::{self, Mint, Token, TokenAccount},
+    associated_token::AssociatedToken,
+    token_interface::{
+        TransferChecked,
+        transfer_checked,
+        TokenInterface, 
+        TokenAccount, 
+        Mint,
+        CloseAccount,
+        close_account
+    }
 };
 use drift::{
     cpi::{
@@ -47,7 +55,7 @@ pub struct CollateralRepayDeposit<'info> {
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<Account<'info, TokenAccount>>,
+    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Can be any account, once it has a Vault
     pub owner: UncheckedAccount<'info>,
@@ -58,11 +66,12 @@ pub struct CollateralRepayDeposit<'info> {
     #[account(
         mut,
         associated_token::mint = spl_mint,
-        associated_token::authority = caller
+        associated_token::authority = caller,
+        associated_token::token_program = token_program
     )]
-    pub caller_spl: Box<Account<'info, TokenAccount>>,
+    pub caller_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub spl_mint: Box<Account<'info, Mint>>,
+    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mut,
@@ -88,7 +97,7 @@ pub struct CollateralRepayDeposit<'info> {
     #[account(mut)]
     pub spot_market_vault: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
 
@@ -239,16 +248,18 @@ pub fn collateral_repay_deposit_handler<'info>(
     let deposit_amount = get_jup_exact_out_route_out_amount(&swap_instruction)?;
 
     // Transfer tokens from callers's ATA to vault's ATA
-    token::transfer(
+    transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(), 
-            token::Transfer { 
+            TransferChecked { 
                 from: ctx.accounts.caller_spl.to_account_info(), 
                 to: ctx.accounts.vault_spl.to_account_info(), 
-                authority: ctx.accounts.caller.to_account_info()
+                authority: ctx.accounts.caller.to_account_info(),
+                mint: ctx.accounts.spl_mint.to_account_info(),
             }
         ),
-        deposit_amount
+        deposit_amount,
+        ctx.accounts.spl_mint.decimals
     )?;
 
     // Drift Deposit CPI
@@ -274,14 +285,14 @@ pub fn collateral_repay_deposit_handler<'info>(
     // Close vault's ATA
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
-        token::CloseAccount {
+        CloseAccount {
             account: ctx.accounts.vault_spl.to_account_info(),
             destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
         signer_seeds
     );
-    token::close_account(cpi_ctx_close)?;
+    close_account(cpi_ctx_close)?;
 
     Ok(())
 }

@@ -1,6 +1,15 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken, token::{self, Mint, Token, TokenAccount}
+    associated_token::AssociatedToken,
+    token_interface::{
+        TransferChecked,
+        transfer_checked,
+        TokenInterface, 
+        TokenAccount, 
+        Mint,
+        CloseAccount,
+        close_account
+    }
 };
 use drift::{
     program::Drift,
@@ -33,7 +42,7 @@ pub struct Withdraw<'info> {
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<Account<'info, TokenAccount>>,
+    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -41,11 +50,12 @@ pub struct Withdraw<'info> {
     #[account(
         mut,
         associated_token::mint = spl_mint,
-        associated_token::authority = owner
+        associated_token::authority = owner,
+        associated_token::token_program = token_program
     )]
-    pub owner_spl: Box<Account<'info, TokenAccount>>,
+    pub owner_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub spl_mint: Box<Account<'info, Mint>>,
+    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mut,
@@ -78,7 +88,7 @@ pub struct Withdraw<'info> {
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     pub drift_signer: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
 
@@ -132,31 +142,33 @@ pub fn withdraw_handler<'info>(
 
     // Transfer tokens from vault's ATA to owner's ATA
 
-    token::transfer(
+    transfer_checked(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(), 
-            token::Transfer { 
+            TransferChecked { 
                 from: ctx.accounts.vault_spl.to_account_info(), 
                 to: ctx.accounts.owner_spl.to_account_info(), 
-                authority: ctx.accounts.vault.to_account_info()
+                authority: ctx.accounts.vault.to_account_info(),
+                mint: ctx.accounts.spl_mint.to_account_info(),
             }, 
             signer_seeds
         ),
-        amount_base_units
+        amount_base_units,
+        ctx.accounts.spl_mint.decimals
     )?;
 
     // Close vault's ATA
 
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
-        token::CloseAccount {
+        CloseAccount {
             account: ctx.accounts.vault_spl.to_account_info(),
             destination: ctx.accounts.owner.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
         signer_seeds
     );
-    token::close_account(cpi_ctx_close)?;
+    close_account(cpi_ctx_close)?;
 
     Ok(())
 }

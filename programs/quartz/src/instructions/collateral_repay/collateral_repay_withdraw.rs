@@ -10,7 +10,15 @@ use anchor_lang::{
     }, 
     Discriminator
 };
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use anchor_spl::token_interface::{
+    TransferChecked,
+    transfer_checked,
+    TokenInterface, 
+    TokenAccount, 
+    Mint,
+    CloseAccount,
+    close_account
+};
 use drift::{
     cpi::{
         accounts::Withdraw as DriftWithdraw, 
@@ -25,7 +33,7 @@ use drift::{
 use pyth_solana_receiver_sdk::price_update::{get_feed_id_from_hex, PriceUpdateV2};
 use crate::{
     check, config::{
-        QuartzError, COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT, COLLATERAL_REPAY_MAX_SLIPPAGE_BPS, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID
+        QuartzError, COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT, COLLATERAL_REPAY_MAX_SLIPPAGE_BPS, JUPITER_EXACT_OUT_ROUTE_DISCRIMINATOR, JUPITER_ID, PYTH_MAX_PRICE_AGE_SECONDS
     }, load_mut, state::{DriftMarket, Vault}, utils::{get_drift_margin_calculation, get_drift_market, get_jup_exact_out_route_out_amount, get_quartz_account_health, normalize_price_exponents}
 };
 
@@ -46,7 +54,7 @@ pub struct CollateralRepayWithdraw<'info> {
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<Account<'info, TokenAccount>>,
+    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Can be any account, once it has a Vault
     pub owner: UncheckedAccount<'info>,
@@ -57,11 +65,12 @@ pub struct CollateralRepayWithdraw<'info> {
     #[account(
         mut,
         associated_token::mint = spl_mint,
-        associated_token::authority = caller
+        associated_token::authority = caller,
+        associated_token::token_program = token_program
     )]
-    pub caller_spl: Box<Account<'info, TokenAccount>>,
+    pub caller_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub spl_mint: Box<Account<'info, Mint>>,
+    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mut,
@@ -90,7 +99,7 @@ pub struct CollateralRepayWithdraw<'info> {
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     pub drift_signer: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 
     pub drift_program: Program<'info, Drift>,
 
@@ -228,7 +237,7 @@ fn validate_prices<'info>(
     let deposit_feed_id: [u8; 32] = get_feed_id_from_hex(deposit_market.pyth_feed)?;
     let deposit_price = ctx.accounts.deposit_price_update.get_price_no_older_than(
         &Clock::get()?, 
-        deposit_market.pyth_max_age_seconds,
+        PYTH_MAX_PRICE_AGE_SECONDS,
         &deposit_feed_id
     )?;
     check!(
@@ -242,7 +251,7 @@ fn validate_prices<'info>(
     let withdraw_feed_id: [u8; 32] = get_feed_id_from_hex(withdraw_market.pyth_feed)?;
     let withdraw_price = ctx.accounts.withdraw_price_update.get_price_no_older_than(
         &Clock::get()?,
-        withdraw_market.pyth_max_age_seconds,
+        PYTH_MAX_PRICE_AGE_SECONDS,
         &withdraw_feed_id
     )?;
     check!(
@@ -400,30 +409,32 @@ pub fn collateral_repay_withdraw_handler<'info>(
     drift_withdraw(cpi_ctx, drift_market_index, withdraw_amount, true)?;
 
     // Transfer tokens from vault's ATA to caller's ATA
-    token::transfer(
+    transfer_checked(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(), 
-            token::Transfer { 
+            TransferChecked { 
                 from: ctx.accounts.vault_spl.to_account_info(), 
                 to: ctx.accounts.caller_spl.to_account_info(), 
-                authority: ctx.accounts.vault.to_account_info()
+                authority: ctx.accounts.vault.to_account_info(),
+                mint: ctx.accounts.spl_mint.to_account_info(),
             }, 
             signer_seeds_vault
         ),
-        withdraw_amount
+        withdraw_amount,
+        ctx.accounts.spl_mint.decimals
     )?;
 
     // Close vault's ATA
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
-        token::CloseAccount {
+        CloseAccount {
             account: ctx.accounts.vault_spl.to_account_info(),
             destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
         signer_seeds_vault
     );
-    token::close_account(cpi_ctx_close)?;
+    close_account(cpi_ctx_close)?;
 
     // Validate account health if the owner isn't the caller
 

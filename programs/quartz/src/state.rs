@@ -5,7 +5,6 @@ pub struct DriftMarket {
     pub market_index: u16,
     pub mint: Pubkey,
     pub pyth_feed: &'static str,
-    pub pyth_max_age_seconds: u64,
     pub base_units_per_token: u64
 }
 

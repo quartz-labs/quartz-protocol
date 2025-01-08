@@ -184,9 +184,10 @@ describe("deposit, withdraw", () => {
       .instruction();
 
     const meta = await processTransaction(banksClient, user.publicKey, [...ixs_wrapSol, ix_deposit]);
-    
+
     expect(meta.logMessages[28]).toBe("Program log: Instruction: Deposit");
-    expect(meta.logMessages[36]).toBe("Program log: Instruction: Transfer");
+    expect(meta.logMessages[36]).toBe("Program log: Instruction: TransferChecked");
+    expect(meta.logMessages[43]).toBe("Program log: Instruction: Transfer");
     expect(meta.logMessages[48]).toBe("Program dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH success");
     expect(meta.logMessages[54]).toBe("Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success");
 
@@ -294,6 +295,7 @@ describe("deposit, withdraw", () => {
     expect(meta.logMessages[56]).toBe("Program log: Instruction: Withdraw");
     expect(meta.logMessages[67]).toBe("Program log: Instruction: Transfer");
     expect(meta.logMessages[71]).toBe("Program dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH success");
+    expect(meta.logMessages[73]).toBe("Program log: Instruction: TransferChecked");
     expect(meta.logMessages[81]).toBe("Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success");
 
     // TODO - Add Drift balance check
