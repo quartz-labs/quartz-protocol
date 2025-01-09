@@ -117,7 +117,6 @@ pub fn deposit_handler<'info>(
     let signer_seeds = &[&seeds[..]];
 
     // Transfer tokens from owner's ATA to vault's ATA
-
     transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(), 
@@ -133,7 +132,6 @@ pub fn deposit_handler<'info>(
     )?;
 
     // Drift Deposit CPI
-
     let mut cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         DriftDeposit {
@@ -152,8 +150,26 @@ pub fn deposit_handler<'info>(
 
     drift_deposit(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
 
-    // Close vault's ATA
+    // Return any remaining balance (in case return_only prevented full deposit)
+    let remaining_balance = ctx.accounts.vault_spl.amount;
+    if remaining_balance > 0 {
+        transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(), 
+                TransferChecked { 
+                    from: ctx.accounts.vault_spl.to_account_info(), 
+                    to: ctx.accounts.owner_spl.to_account_info(), 
+                    authority: ctx.accounts.vault.to_account_info(),
+                    mint: ctx.accounts.spl_mint.to_account_info(),
+                }, 
+                signer_seeds
+            ),
+            remaining_balance,
+            ctx.accounts.spl_mint.decimals
+        )?;
+    }
 
+    // Close vault's ATA
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         CloseAccount {

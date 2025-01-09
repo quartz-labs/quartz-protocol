@@ -64,6 +64,24 @@ pub mod quartz {
 
     // Collateral Repay
 
+    pub fn start_collateral_repay<'info>(
+        ctx: Context<'_, '_, '_, 'info, StartCollateralRepay<'info>>,
+        amount_base_units: u64, 
+        drift_market_index: u16,
+    ) -> Result<()> {
+        start_collateral_repay_handler(ctx, amount_base_units, drift_market_index)
+    }
+
+    pub fn end_collateral_repay<'info>(
+        ctx: Context<'_, '_, '_, 'info, EndCollateralRepay<'info>>,
+        amount_base_units: u64,
+        drift_market_index: u16
+    ) -> Result<()> {
+        end_collateral_repay_handler(ctx, amount_base_units, drift_market_index)
+    }
+
+    // Legacy Collateral Repay
+
     pub fn collateral_repay_start<'info>(
         ctx: Context<'_, '_, '_, 'info, CollateralRepayStart<'info>>,
         start_withdraw_balance: u64  

@@ -60,7 +60,6 @@ pub fn init_drift_account_handler(
     let signer_seeds = &[&seeds[..]];
 
     // Initialize user stats account
-
     let create_user_stats_cpi_context = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         InitializeUserStats {
@@ -77,7 +76,6 @@ pub fn init_drift_account_handler(
     initialize_user_stats(create_user_stats_cpi_context)?;
 
     // Initialize user account
-
     let create_user_cpi_context = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         InitializeUser {

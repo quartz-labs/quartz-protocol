@@ -119,8 +119,13 @@ pub fn withdraw_handler<'info>(
     ];
     let signer_seeds = &[&seeds[..]];
 
-    // Drift Withdraw CPI
+    // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
+    check!(
+        ctx.accounts.vault_spl.amount == 0,
+        QuartzError::InvalidStartingVaultBalance
+    );
 
+    // Drift Withdraw CPI
     let mut cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         DriftWithdraw {
@@ -140,8 +145,8 @@ pub fn withdraw_handler<'info>(
 
     drift_withdraw(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
 
-    // Transfer tokens from vault's ATA to owner's ATA
-
+    // Transfer tokens to owner's ATA, getting the true amount withdrawn (in case return_only prevented full withdraw)
+    let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
     transfer_checked(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(), 
@@ -153,12 +158,11 @@ pub fn withdraw_handler<'info>(
             }, 
             signer_seeds
         ),
-        amount_base_units,
+        true_amount_withdrawn,
         ctx.accounts.spl_mint.decimals
     )?;
 
     // Close vault's ATA
-
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         CloseAccount {

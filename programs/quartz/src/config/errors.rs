@@ -38,4 +38,6 @@ pub enum QuartzError {
     CollateralRepayHealthTooLow,
     #[msg("Collateral repay deposit and withdraw markets must be different")]
     IdenticalCollateralRepayMarkets,
+    #[msg("Invalid starting vault balance")]
+    InvalidStartingVaultBalance,
 }
