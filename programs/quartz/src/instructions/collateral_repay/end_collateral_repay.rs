@@ -46,7 +46,7 @@ use crate::{
         PYTH_MAX_PRICE_AGE_SECONDS
     }, 
     load_mut, 
-    state::{DriftMarket, Vault}, 
+    state::{DriftMarket, TokenLedger, Vault}, 
     utils::{
         get_drift_margin_calculation, 
         get_drift_market, 
@@ -133,6 +133,125 @@ pub struct EndCollateralRepay<'info> {
     /// CHECK: Account is safe once address is correct
     #[account(address = instructions::ID)]
     instructions: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"token_ledger".as_ref(), owner.key().as_ref()],
+        bump,
+        close = caller
+    )]
+    pub token_ledger: Box<Account<'info, TokenLedger>>,
+}
+
+pub fn end_collateral_repay_handler<'info>(
+    ctx: Context<'_, '_, 'info, 'info, EndCollateralRepay<'info>>,
+    amount_withdraw_base_units: u64,
+    drift_market_index: u16
+) -> Result<()> {
+    let index: usize = load_current_index_checked(
+        &ctx.accounts.instructions.to_account_info()
+    )?.into();
+    let start_instruction = load_instruction_at_checked(
+        index - 1, 
+        &ctx.accounts.instructions.to_account_info()
+    )?;
+
+    validate_instruction_order(&start_instruction)?;
+
+    let withdraw_market = get_drift_market(drift_market_index)?;
+    check!(
+        &ctx.accounts.spl_mint.key().eq(&withdraw_market.mint),
+        QuartzError::InvalidMint
+    );
+
+    // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
+    check!(
+        ctx.accounts.vault_spl.amount == 0,
+        QuartzError::InvalidStartingVaultBalance
+    );
+
+    let owner = ctx.accounts.owner.key();
+    let vault_seeds = &[
+        b"vault",
+        owner.as_ref(),
+        &[ctx.accounts.vault.bump]
+    ];
+    let signer_seeds_vault = &[&vault_seeds[..]];
+
+    // Drift Withdraw CPI
+    let mut cpi_ctx = CpiContext::new_with_signer(
+        ctx.accounts.drift_program.to_account_info(),
+        DriftWithdraw {
+            state: ctx.accounts.drift_state.to_account_info(),
+            user: ctx.accounts.drift_user.to_account_info(),
+            user_stats: ctx.accounts.drift_user_stats.to_account_info(),
+            authority: ctx.accounts.vault.to_account_info(),
+            spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
+            drift_signer: ctx.accounts.drift_signer.to_account_info(),
+            user_token_account: ctx.accounts.vault_spl.to_account_info(),
+            token_program: ctx.accounts.token_program.to_account_info(),
+        },
+        signer_seeds_vault
+    );
+
+    cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
+
+    // reduce_only = true to prevent withdrawing more than the collateral position (which would create a new loan)
+    drift_withdraw(cpi_ctx, drift_market_index, amount_withdraw_base_units, true)?;
+
+    // Validate values of amount deposited and amount withdrawn are within slippage
+    let amount_deposited = ctx.accounts.token_ledger.balance;
+    let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
+
+    let deposit_market_index = u16::from_le_bytes(start_instruction.data[16..18].try_into().unwrap());
+    let deposit_market = get_drift_market(deposit_market_index)?;
+
+    validate_prices(
+        &ctx, 
+        amount_deposited, 
+        true_amount_withdrawn, 
+        deposit_market, 
+        withdraw_market
+    )?;
+
+    // Transfer tokens from vault's ATA to caller's ATA
+    transfer_checked(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(), 
+            TransferChecked { 
+                from: ctx.accounts.vault_spl.to_account_info(), 
+                to: ctx.accounts.caller_spl.to_account_info(), 
+                authority: ctx.accounts.vault.to_account_info(),
+                mint: ctx.accounts.spl_mint.to_account_info(),
+            }, 
+            signer_seeds_vault
+        ),
+        true_amount_withdrawn,
+        ctx.accounts.spl_mint.decimals
+    )?;
+
+    // Close vault's ATA
+    let cpi_ctx_close = CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        CloseAccount {
+            account: ctx.accounts.vault_spl.to_account_info(),
+            destination: ctx.accounts.caller.to_account_info(),
+            authority: ctx.accounts.vault.to_account_info(),
+        },
+        signer_seeds_vault
+    );
+    close_account(cpi_ctx_close)?;
+
+    // Validate account health if the owner isn't the caller
+    if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
+        validate_account_health(
+            &ctx, 
+            deposit_market_index, 
+            withdraw_market.market_index
+        )?;
+    }
+
+    Ok(())
 }
 
 #[inline(never)]
@@ -149,45 +268,6 @@ fn validate_instruction_order<'info>(
         start_instruction.data[..8]
             .eq(&crate::instruction::StartCollateralRepay::DISCRIMINATOR),
         QuartzError::IllegalCollateralRepayInstructions
-    );
-
-    Ok(())
-}
-
-#[inline(never)]
-fn validate_user_accounts<'info>(
-    ctx: &Context<'_, '_, '_, 'info, EndCollateralRepay<'info>>,
-    start_instruction: &Instruction
-) -> Result<()> {
-    // Start instruction
-    let start_caller = start_instruction.accounts[0].pubkey;
-    check!(
-        ctx.accounts.caller.key().eq(&start_caller),
-        QuartzError::InvalidUserAccounts
-    );
-
-    let start_owner = start_instruction.accounts[2].pubkey;
-    check!(
-        ctx.accounts.owner.key().eq(&start_owner),
-        QuartzError::InvalidUserAccounts
-    );
-
-    let start_vault = start_instruction.accounts[3].pubkey;
-    check!(
-        ctx.accounts.vault.key().eq(&start_vault),
-        QuartzError::InvalidUserAccounts
-    );
-
-    let start_drift_user = start_instruction.accounts[6].pubkey;
-    check!(
-        ctx.accounts.drift_user.key().eq(&start_drift_user),
-        QuartzError::InvalidUserAccounts
-    );
-
-    let start_drift_user_stats = start_instruction.accounts[7].pubkey;
-    check!(
-        ctx.accounts.drift_user_stats.key().eq(&start_drift_user_stats),
-        QuartzError::InvalidUserAccounts
     );
 
     Ok(())
@@ -298,102 +378,6 @@ fn validate_account_health<'info>(
         quartz_account_health <= COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT,
         QuartzError::CollateralRepayHealthTooHigh
     );
-
-    Ok(())
-}
-
-pub fn end_collateral_repay_handler<'info>(
-    ctx: Context<'_, '_, 'info, 'info, EndCollateralRepay<'info>>,
-    amount_withdraw_base_units: u64,
-    drift_market_index: u16
-) -> Result<()> {
-    let index: usize = load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
-    let start_instruction = load_instruction_at_checked(index - 1, &ctx.accounts.instructions.to_account_info())?;
-
-    validate_instruction_order(&start_instruction)?;
-
-    validate_user_accounts(&ctx, &start_instruction)?;
-
-    let withdraw_market = get_drift_market(drift_market_index)?;
-    check!(
-        &ctx.accounts.spl_mint.key().eq(&withdraw_market.mint),
-        QuartzError::InvalidMint
-    );
-    
-    // Get amount deposited in start_collateral_repay
-    let amount_deposit = ?;
-
-    // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
-    check!(
-        ctx.accounts.vault_spl.amount == 0,
-        QuartzError::InvalidStartingVaultBalance
-    )
-
-    let owner = ctx.accounts.owner.key();
-    let vault_seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[ctx.accounts.vault.bump]
-    ];
-    let signer_seeds_vault = &[&vault_seeds[..]];
-
-    // Drift Withdraw CPI
-    let mut cpi_ctx = CpiContext::new_with_signer(
-        ctx.accounts.drift_program.to_account_info(),
-        DriftWithdraw {
-            state: ctx.accounts.drift_state.to_account_info(),
-            user: ctx.accounts.drift_user.to_account_info(),
-            user_stats: ctx.accounts.drift_user_stats.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
-            spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
-            drift_signer: ctx.accounts.drift_signer.to_account_info(),
-            user_token_account: ctx.accounts.vault_spl.to_account_info(),
-            token_program: ctx.accounts.token_program.to_account_info(),
-        },
-        signer_seeds_vault
-    );
-
-    cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
-
-    // reduce_only = true to prevent withdrawing more than the collateral position (which would create a new loan)
-    drift_withdraw(cpi_ctx, drift_market_index, withdraw_amount, true)?;
-
-    // Validate values of amount deposited and amount withdrawn are within slippage
-    let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
-    validate_prices(&ctx, amount_deposit, true_amount_withdrawn, deposit_market, withdraw_market)?;
-
-    // Transfer tokens from vault's ATA to caller's ATA
-    transfer_checked(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(), 
-            TransferChecked { 
-                from: ctx.accounts.vault_spl.to_account_info(), 
-                to: ctx.accounts.caller_spl.to_account_info(), 
-                authority: ctx.accounts.vault.to_account_info(),
-                mint: ctx.accounts.spl_mint.to_account_info(),
-            }, 
-            signer_seeds_vault
-        ),
-        true_amount_withdrawn,
-        ctx.accounts.spl_mint.decimals
-    )?;
-
-    // Close vault's ATA
-    let cpi_ctx_close = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        CloseAccount {
-            account: ctx.accounts.vault_spl.to_account_info(),
-            destination: ctx.accounts.caller.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
-        },
-        signer_seeds_vault
-    );
-    close_account(cpi_ctx_close)?;
-
-    // Validate account health if the owner isn't the caller
-    if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
-        validate_account_health(&ctx, deposit_market_index, withdraw_market.market_index)?;
-    }
 
     Ok(())
 }

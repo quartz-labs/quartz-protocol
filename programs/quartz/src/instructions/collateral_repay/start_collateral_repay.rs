@@ -37,7 +37,7 @@ use crate::{
     check, 
     config::QuartzError, 
     load_mut, 
-    state::Vault, 
+    state::{TokenLedger, Vault}, 
     utils::{
         get_drift_margin_calculation, 
         get_drift_market, 
@@ -115,71 +115,16 @@ pub struct StartCollateralRepay<'info> {
 
     /// CHECK: Account is safe once address is correct
     #[account(address = instructions::ID)]
-    instructions: UncheckedAccount<'info>,
-}
+    pub instructions: UncheckedAccount<'info>,
 
-#[inline(never)]
-fn validate_instruction_order<'info>(
-    end_instruction: &Instruction
-) -> Result<()> {
-    // Check the next instruction is end_collateral_repay
-    check!(
-        end_instruction.program_id.eq(&crate::id()),
-        QuartzError::IllegalCollateralRepayInstructions
-    );
-
-    check!(
-        end_instruction.data[..8]
-            .eq(&crate::instruction::EndCollateralRepay::DISCRIMINATOR),
-        QuartzError::IllegalCollateralRepayInstructions
-    );
-
-    Ok(())
-}
-
-fn validate_drift_markets<'info>(
-    deposit_market_index: u16,
-    spl_mint: &Pubkey,
-    end_instruction: &Instruction
-) -> Result<(u16, u16)> {
-    let drift_market = get_drift_market(deposit_market_index)?;
-    check!(
-        spl_mint.eq(&drift_market.mint),
-        QuartzError::InvalidMint
-    );
-
-    let withdraw_drift_market_index = u16::from_le_bytes(end_instruction.data[16..18].try_into().unwrap());
-    check!(
-        !drift_market.market_index.eq(&withdraw_drift_market_index),
-        QuartzError::IdenticalCollateralRepayMarkets
-    );
-
-    Ok((deposit_market_index, withdraw_drift_market_index))
-}
-
-#[inline(never)]
-fn validate_account_health<'info>(
-    ctx: &Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
-    deposit_market_index: u16,
-    withdraw_market_index: u16
-) -> Result<()> {
-    let user = &mut load_mut!(ctx.accounts.drift_user)?;
-    let margin_calculation = get_drift_margin_calculation(
-        user, 
-        &ctx.accounts.drift_state, 
-        withdraw_market_index, 
-        deposit_market_index,
-        &ctx.remaining_accounts
-    )?;
-
-    let quartz_account_health = get_quartz_account_health(margin_calculation)?;
-
-    check!(
-        quartz_account_health == 0,
-        QuartzError::NotReachedCollateralRepayThreshold
-    );
-
-    Ok(())
+    #[account(
+        init,
+        seeds = [b"token_ledger".as_ref(), owner.key().as_ref()],
+        bump,
+        payer = caller,
+        space = TokenLedger::INIT_SPACE,
+    )]
+    pub token_ledger: Box<Account<'info, TokenLedger>>,
 }
 
 pub fn start_collateral_repay_handler<'info>(
@@ -187,15 +132,26 @@ pub fn start_collateral_repay_handler<'info>(
     amount_deposit_base_units: u64,
     drift_market_index: u16
 ) -> Result<()> {
-    let index: usize = load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
-    let end_instruction = load_instruction_at_checked(index + 1, &ctx.accounts.instructions.to_account_info())?;
+    let index: usize = load_current_index_checked(
+        &ctx.accounts.instructions.to_account_info()
+    )?.into();
+    let end_instruction = load_instruction_at_checked(
+        index + 1, 
+        &ctx.accounts.instructions.to_account_info()
+    )?;
 
     validate_instruction_order(&end_instruction)?;
+
+    validate_user_accounts(&ctx, &end_instruction)?;
 
     let (
         deposit_market_index, 
         withdraw_market_index
-    ) = validate_drift_markets(drift_market_index, &ctx.accounts.spl_mint.key(), &end_instruction)?;
+    ) = validate_drift_markets(
+        drift_market_index, 
+        &ctx.accounts.spl_mint.key(), 
+        &end_instruction
+    )?;
 
     // Validate account health if the owner isn't the caller
     if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
@@ -276,6 +232,119 @@ pub fn start_collateral_repay_handler<'info>(
         signer_seeds
     );
     close_account(cpi_ctx_close)?;
+
+    // Log the amount of tokens deposited to the ledger
+    ctx.accounts.token_ledger.balance = amount_deposit_base_units - remaining_balance;
+
+    Ok(())
+}
+
+#[inline(never)]
+fn validate_instruction_order<'info>(
+    end_instruction: &Instruction
+) -> Result<()> {
+    // Check the next instruction is end_collateral_repay
+    check!(
+        end_instruction.program_id.eq(&crate::id()),
+        QuartzError::IllegalCollateralRepayInstructions
+    );
+
+    check!(
+        end_instruction.data[..8]
+            .eq(&crate::instruction::EndCollateralRepay::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
+    );
+
+    Ok(())
+}
+
+#[inline(never)]
+fn validate_user_accounts<'info>(
+    ctx: &Context<'_, '_, '_, 'info, StartCollateralRepay<'info>>,
+    end_instruction: &Instruction
+) -> Result<()> {
+    let start_caller = end_instruction.accounts[0].pubkey;
+    check!(
+        ctx.accounts.caller.key().eq(&start_caller),
+        QuartzError::InvalidUserAccounts
+    );
+
+    let start_owner = end_instruction.accounts[2].pubkey;
+    check!(
+        ctx.accounts.owner.key().eq(&start_owner),
+        QuartzError::InvalidUserAccounts
+    );
+
+    let start_vault = end_instruction.accounts[3].pubkey;
+    check!(
+        ctx.accounts.vault.key().eq(&start_vault),
+        QuartzError::InvalidUserAccounts
+    );
+
+    let start_drift_user = end_instruction.accounts[6].pubkey;
+    check!(
+        ctx.accounts.drift_user.key().eq(&start_drift_user),
+        QuartzError::InvalidUserAccounts
+    );
+
+    let start_drift_user_stats = end_instruction.accounts[7].pubkey;
+    check!(
+        ctx.accounts.drift_user_stats.key().eq(&start_drift_user_stats),
+        QuartzError::InvalidUserAccounts
+    );
+
+    let start_token_ledger = end_instruction.accounts[18].pubkey;
+    check!(
+        ctx.accounts.token_ledger.key().eq(&start_token_ledger),
+        QuartzError::InvalidUserAccounts
+    );
+
+    Ok(())
+}
+
+fn validate_drift_markets<'info>(
+    deposit_market_index: u16,
+    spl_mint: &Pubkey,
+    end_instruction: &Instruction
+) -> Result<(u16, u16)> {
+    // Validate deposit market is valid
+    let deposit_market = get_drift_market(deposit_market_index)?;
+    check!(
+        spl_mint.eq(&deposit_market.mint),
+        QuartzError::InvalidMint
+    );
+
+    // Validate deposit and withdraw markets are different
+    let withdraw_market_index = u16::from_le_bytes(end_instruction.data[16..18].try_into().unwrap());
+    check!(
+        !deposit_market.market_index.eq(&withdraw_market_index),
+        QuartzError::IdenticalCollateralRepayMarkets
+    );
+
+    Ok((deposit_market_index, withdraw_market_index))
+}
+
+#[inline(never)]
+fn validate_account_health<'info>(
+    ctx: &Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
+    deposit_market_index: u16,
+    withdraw_market_index: u16
+) -> Result<()> {
+    let user = &mut load_mut!(ctx.accounts.drift_user)?;
+    let margin_calculation = get_drift_margin_calculation(
+        user, 
+        &ctx.accounts.drift_state, 
+        withdraw_market_index, 
+        deposit_market_index,
+        &ctx.remaining_accounts
+    )?;
+
+    let quartz_account_health = get_quartz_account_health(margin_calculation)?;
+
+    check!(
+        quartz_account_health == 0,
+        QuartzError::NotReachedCollateralRepayThreshold
+    );
 
     Ok(())
 }

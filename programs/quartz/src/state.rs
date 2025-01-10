@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::config::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U8_SIZE};
+use crate::config::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U8_SIZE, U64_SIZE};
 
 pub struct DriftMarket {
     pub market_index: u16,
@@ -16,4 +16,13 @@ pub struct Vault {
 
 impl Space for Vault {
     const INIT_SPACE: usize = ANCHOR_DISCRIMINATOR + PUBKEY_SIZE + U8_SIZE;
+}
+
+#[account]
+pub struct TokenLedger {
+    pub balance: u64
+}
+
+impl Space for TokenLedger {
+    const INIT_SPACE: usize = ANCHOR_DISCRIMINATOR + U64_SIZE;
 }

@@ -65,7 +65,7 @@ pub mod quartz {
     // Collateral Repay
 
     pub fn start_collateral_repay<'info>(
-        ctx: Context<'_, '_, '_, 'info, StartCollateralRepay<'info>>,
+        ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
         amount_base_units: u64, 
         drift_market_index: u16,
     ) -> Result<()> {
@@ -73,7 +73,7 @@ pub mod quartz {
     }
 
     pub fn end_collateral_repay<'info>(
-        ctx: Context<'_, '_, '_, 'info, EndCollateralRepay<'info>>,
+        ctx: Context<'_, '_, 'info, 'info, EndCollateralRepay<'info>>,
         amount_base_units: u64,
         drift_market_index: u16
     ) -> Result<()> {
