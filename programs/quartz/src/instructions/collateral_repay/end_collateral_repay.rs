@@ -141,7 +141,7 @@ pub struct EndCollateralRepay<'info> {
 pub fn end_collateral_repay_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, EndCollateralRepay<'info>>,
     amount_withdraw_base_units: u64,
-    drift_market_index: u16
+    withdraw_market_index: u16
 ) -> Result<()> {
     let index: usize = load_current_index_checked(
         &ctx.accounts.instructions.to_account_info()
@@ -153,7 +153,7 @@ pub fn end_collateral_repay_handler<'info>(
 
     validate_instruction_order(&start_instruction)?;
 
-    let withdraw_market = get_drift_market(drift_market_index)?;
+    let withdraw_market = get_drift_market(withdraw_market_index)?;
     check!(
         &ctx.accounts.spl_mint.key().eq(&withdraw_market.mint),
         QuartzError::InvalidMint
@@ -192,7 +192,7 @@ pub fn end_collateral_repay_handler<'info>(
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
     // reduce_only = true to prevent withdrawing more than the collateral position (which would create a new loan)
-    drift_withdraw(cpi_ctx, drift_market_index, amount_withdraw_base_units, true)?;
+    drift_withdraw(cpi_ctx, withdraw_market_index, amount_withdraw_base_units, true)?;
 
     // Validate values of amount deposited and amount withdrawn are within slippage
     let amount_deposited = ctx.accounts.token_ledger.balance;

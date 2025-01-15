@@ -203,18 +203,18 @@ describe("collateral repay", () => {
       quartzProgram, 
       banksClient, 
       10_000_000, 
-      DRIFT_MARKET_INDEX_SOL, 
+      DRIFT_MARKET_INDEX_USDC, 
       {
         vault: vault,
-        vaultSpl: getVaultSplPda(vault, WSOL_MINT),
+        vaultSpl: getVaultSplPda(vault, USDC_MINT),
         owner: user.publicKey,
-        ownerSpl: walletWsol,
-        splMint: WSOL_MINT,
+        ownerSpl: walletUsdc,
+        splMint: USDC_MINT,
         driftUser: driftUser,
         driftUserStats: driftUserStats,
         driftState: driftState,
         driftSigner: DRIFT_SIGNER,
-        spotMarketVault: solSpotMarketVault,
+        spotMarketVault: usdcSpotMarketVault,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -222,7 +222,9 @@ describe("collateral repay", () => {
       },
       [
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(solSpotMarket, true, false),
+        toRemainingAccount(solSpotMarket, false, false),
+        toRemainingAccount(DRIFT_ORACLE_USDC, false, false),
+        toRemainingAccount(usdcSpotMarket, true, false),
       ]
     )
   });
@@ -244,32 +246,7 @@ describe("collateral repay", () => {
     });
 
     const ix_startCollateralRepay = await quartzProgram.methods
-      .startCollateralRepay(new BN(amountCollateral), DRIFT_MARKET_INDEX_SOL)
-      .accounts({
-        caller: user.publicKey,
-        callerSpl: walletWsol,
-        owner: user.publicKey,
-        vault: vault,
-        vaultSpl: getVaultSplPda(vault, WSOL_MINT),
-        splMint: WSOL_MINT,
-        driftUser: driftUser,
-        driftUserStats: driftUserStats,
-        driftState: driftState,
-        spotMarketVault: solSpotMarketVault,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        driftProgram: DRIFT_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
-        tokenLedger: tokenLedger
-      })
-      .remainingAccounts([
-        toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(solSpotMarket, true, false),
-      ])
-      .instruction();
-
-    const ix_endCollateralRepay = await quartzProgram.methods
-      .endCollateralRepay(new BN(AMOUNT_LOAN), DRIFT_MARKET_INDEX_USDC)
+      .startCollateralRepay(new BN(AMOUNT_LOAN), DRIFT_MARKET_INDEX_USDC)
       .accounts({
         caller: user.publicKey,
         callerSpl: walletUsdc,
@@ -281,6 +258,33 @@ describe("collateral repay", () => {
         driftUserStats: driftUserStats,
         driftState: driftState,
         spotMarketVault: usdcSpotMarketVault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        driftProgram: DRIFT_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
+        tokenLedger: tokenLedger
+      })
+      .remainingAccounts([
+        toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
+        toRemainingAccount(solSpotMarket, false, false),
+        toRemainingAccount(DRIFT_ORACLE_USDC, false, false),
+        toRemainingAccount(usdcSpotMarket, true, false),
+      ])
+      .instruction();
+
+    const ix_endCollateralRepay = await quartzProgram.methods
+      .endCollateralRepay(new BN(amountCollateral), DRIFT_MARKET_INDEX_SOL)
+      .accounts({
+        caller: user.publicKey,
+        callerSpl: walletWsol,
+        owner: user.publicKey,
+        vault: vault,
+        vaultSpl: getVaultSplPda(vault, WSOL_MINT),
+        splMint: WSOL_MINT,
+        driftUser: driftUser,
+        driftUserStats: driftUserStats,
+        driftState: driftState,
+        spotMarketVault: solSpotMarketVault,
         driftSigner: DRIFT_SIGNER,
         tokenProgram: TOKEN_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -294,7 +298,7 @@ describe("collateral repay", () => {
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
         toRemainingAccount(solSpotMarket, false, false),
         toRemainingAccount(DRIFT_ORACLE_USDC, false, false),
-        toRemainingAccount(usdcSpotMarket, true, false),
+        toRemainingAccount(usdcSpotMarket, true, false)
       ])
       .instruction();
 

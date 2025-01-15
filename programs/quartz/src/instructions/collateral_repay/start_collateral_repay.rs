@@ -122,7 +122,7 @@ pub struct StartCollateralRepay<'info> {
 pub fn start_collateral_repay_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
     amount_deposit_base_units: u64,
-    drift_market_index: u16
+    deposit_market_index: u16
 ) -> Result<()> {
     let index: usize = load_current_index_checked(
         &ctx.accounts.instructions.to_account_info()
@@ -140,7 +140,7 @@ pub fn start_collateral_repay_handler<'info>(
         deposit_market_index, 
         withdraw_market_index
     ) = validate_drift_markets(
-        drift_market_index, 
+        deposit_market_index, 
         &ctx.accounts.spl_mint.key(), 
         &end_instruction
     )?;
@@ -192,7 +192,7 @@ pub fn start_collateral_repay_handler<'info>(
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
     // reduce_only = true means that the caller can not deposit more than the user's borrowed position / create a collateral position
-    drift_deposit(cpi_ctx, drift_market_index, amount_deposit_base_units, true)?;
+    drift_deposit(cpi_ctx, deposit_market_index, amount_deposit_base_units, true)?;
 
     // Return any remaining balance (in case return_only prevented full deposit)
     let remaining_balance = ctx.accounts.vault_spl.amount;
