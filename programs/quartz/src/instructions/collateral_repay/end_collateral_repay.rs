@@ -10,17 +10,14 @@ use anchor_lang::{
     }, 
     Discriminator
 };
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token_interface::{
-        TransferChecked,
-        transfer_checked,
-        TokenInterface, 
-        TokenAccount, 
-        Mint,
-        CloseAccount,
-        close_account
-    }
+use anchor_spl::token_interface::{
+    TransferChecked,
+    transfer_checked,
+    TokenInterface, 
+    TokenAccount, 
+    Mint,
+    CloseAccount,
+    close_account
 };
 use drift::{
     cpi::{
@@ -120,8 +117,6 @@ pub struct EndCollateralRepay<'info> {
 
     pub token_program: Interface<'info, TokenInterface>,
 
-    pub associated_token_program: Program<'info, AssociatedToken>,
-
     pub drift_program: Program<'info, Drift>,
 
     pub system_program: Program<'info, System>,
@@ -202,6 +197,9 @@ pub fn end_collateral_repay_handler<'info>(
     // Validate values of amount deposited and amount withdrawn are within slippage
     let amount_deposited = ctx.accounts.token_ledger.balance;
     let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
+
+    msg!("amount_deposited: {}", amount_deposited);
+    msg!("true_amount_withdrawn: {}", true_amount_withdrawn);
 
     let deposit_market_index = u16::from_le_bytes(start_instruction.data[16..18].try_into().unwrap());
     let deposit_market = get_drift_market(deposit_market_index)?;

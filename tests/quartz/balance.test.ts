@@ -23,9 +23,7 @@ import {
   DRIFT_ORACLE_SOL, 
   DRIFT_ORACLE_USDC, 
   DRIFT_MARKET_INDEX_USDC, 
-  DRIFT_MARKET_INDEX_SOL, 
-  DRIFT_SPOT_MARKET_SOL, 
-  DRIFT_SPOT_MARKET_USDC, 
+  DRIFT_MARKET_INDEX_SOL,
   USDC_MINT, 
   WSOL_MINT, 
   DRIFT_PROGRAM_ID,
@@ -34,7 +32,7 @@ import {
 import config from "../config/config";
 import { initUser, makeWrapSolIxs } from "../utils/instructions";
 import { initDriftAccount } from "../utils/instructions";
-import { getDriftSpotMarketVault, getDriftUserStats, getDriftState, getDriftUser, getVaultPda, getVaultSplPda, toRemainingAccount } from "../utils/accounts";
+import { getDriftSpotMarketVault, getDriftUserStats, getDriftState, getDriftUser, getVaultPda, getVaultSplPda, toRemainingAccount, getDriftSpotMarket } from "../utils/accounts";
 
 describe("deposit, withdraw", () => {
   let provider: BankrunProvider;
@@ -44,36 +42,36 @@ describe("deposit, withdraw", () => {
   let quartzProgram: Program<Quartz>;
 
   let vault: PublicKey;
-  let driftState: PublicKey;
   let driftUser: PublicKey;
   let driftUserStats: PublicKey;
-  let solSpotMarket: PublicKey;
-  let usdcSpotMarket: PublicKey;
   let walletWsol: PublicKey;
   let walletUsdc: PublicKey;
+
+  const driftState = getDriftState();
+  const solSpotMarketVault = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_SOL);
+  const usdcSpotMarketVault = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_USDC);
+  const solSpotMarket = getDriftSpotMarket(DRIFT_MARKET_INDEX_SOL);
+  const usdcSpotMarket = getDriftSpotMarket(DRIFT_MARKET_INDEX_USDC);
 
   beforeEach(async () => {
     user = Keypair.generate();
     vault = getVaultPda(user.publicKey);
-    driftState = getDriftState();
     driftUser = getDriftUser(vault);
     driftUserStats = getDriftUserStats(vault);
-    solSpotMarket = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_SOL);
-    usdcSpotMarket = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_USDC);
     walletWsol = await getAssociatedTokenAddress(WSOL_MINT, user.publicKey);
     walletUsdc = await getAssociatedTokenAddress(USDC_MINT, user.publicKey);
     
     const connection = new Connection(config.RPC_URL);
     const driftStateAccount = await connection.getAccountInfo(driftState);
-    const solSpotMarketAccountInfo = await connection.getAccountInfo(DRIFT_SPOT_MARKET_SOL);
-    const usdcSpotMarketAccountInfo = await connection.getAccountInfo(DRIFT_SPOT_MARKET_USDC);
+    const solSpotMarketAccountInfo = await connection.getAccountInfo(solSpotMarket);
+    const usdcSpotMarketAccountInfo = await connection.getAccountInfo(usdcSpotMarket);
     const oracle1AccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_SOL);
     const oracle2AccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_USDC);
     const driftSignerAccountInfo = await connection.getAccountInfo(DRIFT_SIGNER);
     const usdcMintAccountInfo = await connection.getAccountInfo(USDC_MINT);
     const solMintAccountInfo = await connection.getAccountInfo(WSOL_MINT);
-    const solSpotMarketVaultAccountInfo = await connection.getAccountInfo(solSpotMarket);
-    const usdcSpotMarketVaultAccountInfo = await connection.getAccountInfo(usdcSpotMarket);
+    const solSpotMarketVaultAccountInfo = await connection.getAccountInfo(solSpotMarketVault);
+    const usdcSpotMarketVaultAccountInfo = await connection.getAccountInfo(usdcSpotMarketVault);
 
     context = await startAnchor(
       "./",
@@ -93,19 +91,19 @@ describe("deposit, withdraw", () => {
           info: driftStateAccount,
         },
         {
-          address: solSpotMarket,
+          address: solSpotMarketVault,
           info: solSpotMarketVaultAccountInfo,
         },
         {
-          address: usdcSpotMarket,
+          address: usdcSpotMarketVault,
           info: usdcSpotMarketVaultAccountInfo,
         },
         {
-          address: DRIFT_SPOT_MARKET_SOL,
+          address: solSpotMarket,
           info: solSpotMarketAccountInfo,
         },
         {
-          address: DRIFT_SPOT_MARKET_USDC,
+          address: usdcSpotMarket,
           info: usdcSpotMarketAccountInfo,
         },
         {
@@ -155,7 +153,7 @@ describe("deposit, withdraw", () => {
   test("Should deposit lamports", async () => {
     const amount = 10 * LAMPORTS_PER_SOL;
 
-    const ixs_wrapSol = await makeWrapSolIxs(quartzProgram, banksClient, amount, {
+    const ixs_wrapSol = await makeWrapSolIxs(banksClient, amount, {
       user: user.publicKey,
       walletWsol: walletWsol,
     });
@@ -171,7 +169,7 @@ describe("deposit, withdraw", () => {
         driftUser: driftUser,
         driftUserStats: driftUserStats,
         driftState: driftState,
-        spotMarketVault: solSpotMarket,
+        spotMarketVault: solSpotMarketVault,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -179,7 +177,7 @@ describe("deposit, withdraw", () => {
       })
       .remainingAccounts([
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+        toRemainingAccount(solSpotMarket, true, false),
       ])
       .instruction();
 
@@ -198,7 +196,7 @@ describe("deposit, withdraw", () => {
     const amountWrap = 5 * LAMPORTS_PER_SOL;
     const amountDeposit = 10 * LAMPORTS_PER_SOL;
 
-    const ixs_wrapSol = await makeWrapSolIxs(quartzProgram, banksClient, amountWrap, {
+    const ixs_wrapSol = await makeWrapSolIxs(banksClient, amountWrap, {
       user: user.publicKey,
       walletWsol: walletWsol,
     });
@@ -214,7 +212,7 @@ describe("deposit, withdraw", () => {
         driftUser: driftUser,
         driftUserStats: driftUserStats,
         driftState: driftState,
-        spotMarketVault: solSpotMarket,
+        spotMarketVault: solSpotMarketVault,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -222,7 +220,7 @@ describe("deposit, withdraw", () => {
       })
       .remainingAccounts([
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+        toRemainingAccount(solSpotMarket, true, false),
       ])
       .instruction();
 
@@ -238,7 +236,7 @@ describe("deposit, withdraw", () => {
     const amountDeposit = 10 * LAMPORTS_PER_SOL;
     const amountWithdraw = 5 * LAMPORTS_PER_SOL;
 
-    const ixs_wrapSol = await makeWrapSolIxs(quartzProgram, banksClient, amountDeposit, {
+    const ixs_wrapSol = await makeWrapSolIxs(banksClient, amountDeposit, {
       user: user.publicKey,
       walletWsol: walletWsol,
     });
@@ -254,7 +252,7 @@ describe("deposit, withdraw", () => {
         driftUser: driftUser,
         driftUserStats: driftUserStats,
         driftState: driftState,
-        spotMarketVault: solSpotMarket,
+        spotMarketVault: solSpotMarketVault,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -262,7 +260,7 @@ describe("deposit, withdraw", () => {
       })
       .remainingAccounts([
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+        toRemainingAccount(solSpotMarket, true, false),
       ])
       .instruction();
 
@@ -278,7 +276,7 @@ describe("deposit, withdraw", () => {
         driftUserStats: driftUserStats,
         driftState: driftState,
         driftSigner: DRIFT_SIGNER,
-        spotMarketVault: solSpotMarket,
+        spotMarketVault: solSpotMarketVault,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -286,7 +284,7 @@ describe("deposit, withdraw", () => {
       })
       .remainingAccounts([
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+        toRemainingAccount(solSpotMarket, true, false),
       ])
       .instruction();
 

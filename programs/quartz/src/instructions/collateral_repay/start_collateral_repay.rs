@@ -1,26 +1,21 @@
 use anchor_lang::{
-    prelude::*, 
-    solana_program::{
+    prelude::*, solana_program::{
         instruction::Instruction, 
         sysvar::instructions::{
             self,
             load_current_index_checked, 
             load_instruction_at_checked
         }
-    }, 
-    Discriminator
+    }, system_program::{create_account, CreateAccount}, Discriminator
 };
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token_interface::{
-        TransferChecked,
-        transfer_checked,
-        TokenInterface, 
-        TokenAccount, 
-        Mint,
-        CloseAccount,
-        close_account
-    }
+use anchor_spl::token_interface::{
+    TransferChecked,
+    transfer_checked,
+    TokenInterface, 
+    TokenAccount, 
+    Mint,
+    CloseAccount,
+    close_account
 };
 use drift::{
     cpi::{
@@ -107,8 +102,6 @@ pub struct StartCollateralRepay<'info> {
 
     pub token_program: Interface<'info, TokenInterface>,
 
-    pub associated_token_program: Program<'info, AssociatedToken>,
-
     pub drift_program: Program<'info, Drift>,
 
     pub system_program: Program<'info, System>,
@@ -117,14 +110,13 @@ pub struct StartCollateralRepay<'info> {
     #[account(address = instructions::ID)]
     pub instructions: UncheckedAccount<'info>,
 
+    /// CHECK: Accounts struct will overflow stack, check is done in handler instead
     #[account(
-        init,
+        mut,
         seeds = [b"token_ledger".as_ref(), owner.key().as_ref()],
         bump,
-        payer = caller,
-        space = TokenLedger::INIT_SPACE,
     )]
-    pub token_ledger: Box<Account<'info, TokenLedger>>,
+    pub token_ledger: UncheckedAccount<'info>,
 }
 
 pub fn start_collateral_repay_handler<'info>(
@@ -234,7 +226,8 @@ pub fn start_collateral_repay_handler<'info>(
     close_account(cpi_ctx_close)?;
 
     // Log the amount of tokens deposited to the ledger
-    ctx.accounts.token_ledger.balance = amount_deposit_base_units - remaining_balance;
+    let true_amount_deposited = amount_deposit_base_units - remaining_balance;
+    track_token_ledger_balance(&ctx, true_amount_deposited)?;
 
     Ok(())
 }
@@ -293,7 +286,7 @@ fn validate_user_accounts<'info>(
         QuartzError::InvalidUserAccounts
     );
 
-    let start_token_ledger = end_instruction.accounts[18].pubkey;
+    let start_token_ledger = end_instruction.accounts[17].pubkey;
     check!(
         ctx.accounts.token_ledger.key().eq(&start_token_ledger),
         QuartzError::InvalidUserAccounts
@@ -302,6 +295,7 @@ fn validate_user_accounts<'info>(
     Ok(())
 }
 
+#[inline(never)]
 fn validate_drift_markets<'info>(
     deposit_market_index: u16,
     spl_mint: &Pubkey,
@@ -346,5 +340,48 @@ fn validate_account_health<'info>(
         QuartzError::NotReachedCollateralRepayThreshold
     );
 
+    Ok(())
+}
+
+fn track_token_ledger_balance<'info>(
+    ctx: &Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
+    balance: u64
+) -> Result<()> {
+    // Verify account is fresh
+    check!(
+        ctx.accounts.token_ledger.data_is_empty(),
+        QuartzError::FreshTokenLedgerRequired
+    );
+
+    // Create account
+    let token_ledger_bump = ctx.bumps.token_ledger;
+    let owner = ctx.accounts.owner.key();
+    let seeds = &[
+        b"token_ledger",
+        owner.as_ref(),
+        &[token_ledger_bump]
+    ];
+    let signer_seeds = &[&seeds[..]];
+
+    let rent = Rent::get()?.minimum_balance(TokenLedger::INIT_SPACE);
+    create_account(
+        CpiContext::new_with_signer(
+            ctx.accounts.system_program.to_account_info(),
+            CreateAccount {
+                from: ctx.accounts.caller.to_account_info(),
+                to: ctx.accounts.token_ledger.to_account_info(),
+            },
+            signer_seeds
+        ), 
+        rent, 
+        TokenLedger::INIT_SPACE.try_into().unwrap(),
+        ctx.program_id
+    )?;
+
+    // Initialize account data
+    let mut token_ledger_data = ctx.accounts.token_ledger.try_borrow_mut_data()?;
+    token_ledger_data[..8].copy_from_slice(&TokenLedger::DISCRIMINATOR);
+    token_ledger_data[8..16].copy_from_slice(&balance.to_le_bytes());
+    
     Ok(())
 }

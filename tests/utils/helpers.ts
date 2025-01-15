@@ -235,3 +235,17 @@ export async function fetchAddressLookupTable(
     }
   });
 }
+
+export async function fetchPricesCoingecko(
+  coingeckoIds: string[]
+): Promise<Record<string, number>> {
+  const coingeckoParams = coingeckoIds.join(",");
+  const endpoint = `https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoParams}&vs_currencies=usd`;
+  const response = await fetch(endpoint);
+  if (!response.ok) throw new Error("Failed to fetch prices");
+  const body = await response.json() as Record<string, { usd: number }>;
+  const prices = Object.fromEntries(
+    Object.entries(body).map(([key, value]) => [key, value.usd])
+  );
+  return prices;
+}

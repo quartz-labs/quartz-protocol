@@ -26,6 +26,14 @@ export const getVaultSplPda = (vaultPda: PublicKey, mint: PublicKey) => {
     return vaultWSol;
 };
 
+export const getTokenLedgerPda = (owner: PublicKey) => {
+    const [tokenLedger] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("token_ledger"), owner.toBuffer()],
+        QUARTZ_PROGRAM_ID
+    );
+    return tokenLedger;
+};
+
 export const getDriftSpotMarketVault = (marketIndex: number) => {
     const [spotMarketVaultPda] = web3.PublicKey.findProgramAddressSync(
         [
@@ -36,6 +44,17 @@ export const getDriftSpotMarketVault = (marketIndex: number) => {
     );
     return spotMarketVaultPda;
 };
+
+export const getDriftSpotMarket = (marketIndex: number) => {
+    const [spotMarketPda] = PublicKey.findProgramAddressSync(
+        [
+            Buffer.from("spot_market"), 
+            new BN(marketIndex).toArrayLike(Buffer, 'le', 2)    
+        ],
+        DRIFT_PROGRAM_ID
+    );
+    return spotMarketPda;
+}
   
 export const getDriftUser = (authority: PublicKey) => {
     const [userPda] = web3.PublicKey.findProgramAddressSync(

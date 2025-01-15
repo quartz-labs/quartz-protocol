@@ -20,15 +20,13 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
-import { fetchAddressLookupTable, getJupiterSwapIx, getPythOracle, processTransaction, setupAddressLookupTable, setupATA, } from "../utils/helpers";
+import { fetchAddressLookupTable, fetchPricesCoingecko, getJupiterSwapIx, getPythOracle, processTransaction, setupAddressLookupTable, setupATA, } from "../utils/helpers";
 import { 
   DRIFT_SIGNER, 
   DRIFT_ORACLE_SOL, 
   DRIFT_ORACLE_USDC, 
   DRIFT_MARKET_INDEX_USDC, 
   DRIFT_MARKET_INDEX_SOL, 
-  DRIFT_SPOT_MARKET_SOL, 
-  DRIFT_SPOT_MARKET_USDC, 
   USDC_MINT, 
   WSOL_MINT, 
   DRIFT_PROGRAM_ID,
@@ -38,7 +36,7 @@ import {
 import config from "../config/config";
 import { deposit, initUser, makeWrapSolIxs, withdraw, wrapSol } from "../utils/instructions";
 import { initDriftAccount } from "../utils/instructions";
-import { getDriftSpotMarketVault, getDriftUserStats, getDriftState, getDriftUser, getVaultPda, getVaultSplPda, toRemainingAccount } from "../utils/accounts";
+import { getDriftSpotMarketVault, getDriftUserStats, getDriftState, getDriftUser, getVaultPda, getVaultSplPda, toRemainingAccount, getTokenLedgerPda, getDriftSpotMarket } from "../utils/accounts";
 import { QuoteResponse } from "@jup-ag/api";
 
 describe("collateral repay", () => {
@@ -51,8 +49,10 @@ describe("collateral repay", () => {
   let quartzProgram: Program<Quartz>;
   
   const driftState = getDriftState();
-  const solSpotMarket = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_SOL);
-  const usdcSpotMarket = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_USDC);
+  const solSpotMarketVault = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_SOL);
+  const usdcSpotMarketVault = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_USDC);
+  const solSpotMarket = getDriftSpotMarket(DRIFT_MARKET_INDEX_SOL);
+  const usdcSpotMarket = getDriftSpotMarket(DRIFT_MARKET_INDEX_USDC);
 
   let quartzLookupTable: PublicKey;
   let vault: PublicKey;
@@ -60,7 +60,7 @@ describe("collateral repay", () => {
   let driftUserStats: PublicKey;
   let walletWsol: PublicKey;
   let walletUsdc: PublicKey;
-
+  let tokenLedger: PublicKey;
   beforeEach(async () => {
     user = Keypair.generate();
     vault = getVaultPda(user.publicKey);
@@ -68,17 +68,21 @@ describe("collateral repay", () => {
     driftUserStats = getDriftUserStats(vault);
     walletWsol = await getAssociatedTokenAddress(WSOL_MINT, user.publicKey);
     walletUsdc = await getAssociatedTokenAddress(USDC_MINT, user.publicKey);
+    tokenLedger = getTokenLedgerPda(user.publicKey);
     
     const driftStateAccount = await connection.getAccountInfo(driftState);
-    const solSpotMarketAccountInfo = await connection.getAccountInfo(DRIFT_SPOT_MARKET_SOL);
-    const usdcSpotMarketAccountInfo = await connection.getAccountInfo(DRIFT_SPOT_MARKET_USDC);
+    const solSpotMarketAccountInfo = await connection.getAccountInfo(solSpotMarket);
+    const usdcSpotMarketAccountInfo = await connection.getAccountInfo(usdcSpotMarket);
     const oracleSolAccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_SOL);
     const oracleUsdcAccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_USDC);
     const driftSignerAccountInfo = await connection.getAccountInfo(DRIFT_SIGNER);
     const usdcMintAccountInfo = await connection.getAccountInfo(USDC_MINT);
     const solMintAccountInfo = await connection.getAccountInfo(WSOL_MINT);
-    const solSpotMarketVaultAccountInfo = await connection.getAccountInfo(solSpotMarket);
-    const usdcSpotMarketVaultAccountInfo = await connection.getAccountInfo(usdcSpotMarket);
+    const solSpotMarketVaultAccountInfo = await connection.getAccountInfo(solSpotMarketVault);
+    const usdcSpotMarketVaultAccountInfo = await connection.getAccountInfo(usdcSpotMarketVault);
+    const pythOracleUsdcAccountInfo = await connection.getAccountInfo(getPythOracle(0));
+    const pythOracleSolAccountInfo = await connection.getAccountInfo(getPythOracle(1));
+
 
     context = await startAnchor(
       "./",
@@ -98,19 +102,19 @@ describe("collateral repay", () => {
           info: driftStateAccount,
         },
         {
-          address: solSpotMarket,
+          address: solSpotMarketVault,
           info: solSpotMarketVaultAccountInfo,
         },
         {
-          address: usdcSpotMarket,
+          address: usdcSpotMarketVault,
           info: usdcSpotMarketVaultAccountInfo,
         },
         {
-          address: DRIFT_SPOT_MARKET_SOL,
+          address: solSpotMarket,
           info: solSpotMarketAccountInfo,
         },
         {
-          address: DRIFT_SPOT_MARKET_USDC,
+          address: usdcSpotMarket,
           info: usdcSpotMarketAccountInfo,
         },
         {
@@ -132,6 +136,14 @@ describe("collateral repay", () => {
         {
           address: WSOL_MINT,
           info: solMintAccountInfo,
+        },
+        {
+          address: getPythOracle(0),
+          info: pythOracleUsdcAccountInfo,
+        },
+        {
+          address: getPythOracle(1),
+          info: pythOracleSolAccountInfo,
         }
       ]
     );
@@ -176,7 +188,7 @@ describe("collateral repay", () => {
         driftUser: driftUser,
         driftUserStats: driftUserStats,
         driftState: driftState,
-        spotMarketVault: solSpotMarket,
+        spotMarketVault: solSpotMarketVault,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -184,7 +196,7 @@ describe("collateral repay", () => {
       },
       [
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+        toRemainingAccount(solSpotMarket, true, false),
       ]
     )
     await withdraw(
@@ -202,7 +214,7 @@ describe("collateral repay", () => {
         driftUserStats: driftUserStats,
         driftState: driftState,
         driftSigner: DRIFT_SIGNER,
-        spotMarketVault: solSpotMarket,
+        spotMarketVault: solSpotMarketVault,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -210,93 +222,65 @@ describe("collateral repay", () => {
       },
       [
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+        toRemainingAccount(solSpotMarket, true, false),
       ]
     )
   });
 
+  const TIMEOUT = 10_000;
   test("Should repay collateral", async () => {
-    const amountLoan = 5_000_000;
+    const AMOUNT_LOAN = 5_000_000;
+    
+    const {
+      "usd-coin": priceUsdc,
+      "solana": priceSol
+    } = await fetchPricesCoingecko(["usd-coin", "solana"]);
 
-    const mintCollateral = WSOL_MINT;
-    const mintLoan = USDC_MINT;
-    const slippageBps = 50;
+    const amountCollateral = Math.round(AMOUNT_LOAN * priceUsdc / priceSol);
 
-    const jupiterQuoteEndpoint
-        = `https://quote-api.jup.ag/v6/quote?inputMint=${mintCollateral.toBase58()}&outputMint=${mintLoan.toBase58()}&amount=${amountLoan}&slippageBps=${slippageBps}&swapMode=ExactOut&onlyDirectRoutes=true`;
-    const response = await fetch(jupiterQuoteEndpoint);
-    const jupiterQuote = (await response.json()) as QuoteResponse;
-    const collateralRequiredForSwap = Math.ceil(Number(jupiterQuote.inAmount) * (1 + (slippageBps / 10_000)));
-
-    const ixs_wrapSol = await makeWrapSolIxs(banksClient, collateralRequiredForSwap, {
+    const ixs_wrapSol = await makeWrapSolIxs(banksClient, amountCollateral, {
       user: user.publicKey,
       walletWsol: walletWsol,
     });
 
-    console.log(collateralRequiredForSwap);
-    console.log(new BN(collateralRequiredForSwap).toString());
-
-    const ix_collateralRepayStart = await quartzProgram.methods
-      .collateralRepayStart(new BN(collateralRequiredForSwap))
+    const ix_startCollateralRepay = await quartzProgram.methods
+      .startCollateralRepay(new BN(amountCollateral), DRIFT_MARKET_INDEX_SOL)
       .accounts({
-        caller: user.publicKey,
-        callerWithdrawSpl: walletWsol,
-        withdrawMint: WSOL_MINT,
-        vault: vault,
-        vaultWithdrawSpl: getVaultSplPda(vault, WSOL_MINT),
-        owner: user.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
-      })
-      .instruction();
-
-    const { 
-      ix_jupiterSwap,
-      jupiterLookupTables
-    } = await getJupiterSwapIx(user.publicKey, connection, jupiterQuote);
-
-    const ix_collateralRepayDeposit = await quartzProgram.methods
-      .collateralRepayDeposit(DRIFT_MARKET_INDEX_USDC)
-      .accounts({
-        vault: vault,
-        vaultSpl: getVaultSplPda(vault, USDC_MINT),
-        owner: user.publicKey,
-        caller: user.publicKey,
-        callerSpl: walletUsdc,
-        splMint: USDC_MINT,
-        driftUser: driftUser,
-        driftUserStats: driftUserStats,
-        driftState: driftState,
-        spotMarketVault: usdcSpotMarket,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_PROGRAM_ID,
-        driftProgram: DRIFT_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
-      })
-      .remainingAccounts([
-        toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
-        toRemainingAccount(DRIFT_ORACLE_USDC, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_USDC, true, false),
-      ])
-      .instruction();
-
-    const ix_collateralRepayWithdraw = await quartzProgram.methods
-      .collateralRepayWithdraw(DRIFT_MARKET_INDEX_SOL)
-      .accounts({
-        vault: vault,
-        vaultSpl: getVaultSplPda(vault, WSOL_MINT),
-        owner: user.publicKey,
         caller: user.publicKey,
         callerSpl: walletWsol,
+        owner: user.publicKey,
+        vault: vault,
+        vaultSpl: getVaultSplPda(vault, WSOL_MINT),
         splMint: WSOL_MINT,
         driftUser: driftUser,
         driftUserStats: driftUserStats,
         driftState: driftState,
-        spotMarketVault: usdcSpotMarket,
+        spotMarketVault: solSpotMarketVault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        driftProgram: DRIFT_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
+        tokenLedger: tokenLedger
+      })
+      .remainingAccounts([
+        toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
+        toRemainingAccount(solSpotMarket, true, false),
+      ])
+      .instruction();
+
+    const ix_endCollateralRepay = await quartzProgram.methods
+      .endCollateralRepay(new BN(AMOUNT_LOAN), DRIFT_MARKET_INDEX_USDC)
+      .accounts({
+        caller: user.publicKey,
+        callerSpl: walletUsdc,
+        owner: user.publicKey,
+        vault: vault,
+        vaultSpl: getVaultSplPda(vault, USDC_MINT),
+        splMint: USDC_MINT,
+        driftUser: driftUser,
+        driftUserStats: driftUserStats,
+        driftState: driftState,
+        spotMarketVault: usdcSpotMarketVault,
         driftSigner: DRIFT_SIGNER,
         tokenProgram: TOKEN_PROGRAM_ID,
         driftProgram: DRIFT_PROGRAM_ID,
@@ -304,12 +288,13 @@ describe("collateral repay", () => {
         depositPriceUpdate: getPythOracle(0),
         withdrawPriceUpdate: getPythOracle(1),
         instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
+        tokenLedger: tokenLedger
       })
       .remainingAccounts([
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_SOL, true, false),
+        toRemainingAccount(solSpotMarket, true, false),
         toRemainingAccount(DRIFT_ORACLE_USDC, false, false),
-        toRemainingAccount(DRIFT_SPOT_MARKET_USDC, true, false),
+        toRemainingAccount(usdcSpotMarket, true, false),
       ])
       .instruction();
 
@@ -320,14 +305,11 @@ describe("collateral repay", () => {
       recentBlockhash: blockhash,
       instructions: [
         ...ixs_wrapSol, 
-        ix_collateralRepayStart,
-        ix_collateralRepayDeposit, 
-        ix_collateralRepayWithdraw
+        ix_startCollateralRepay,
+        ix_endCollateralRepay
       ]
     }).compileToV0Message([lookupTable]);
     const transaction = new VersionedTransaction(messagev0);
     const meta = await banksClient.processTransaction(transaction);
-
-    throw new Error("Not implemented");
-  });
+  }, TIMEOUT);
 });

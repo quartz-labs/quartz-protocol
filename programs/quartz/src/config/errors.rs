@@ -40,4 +40,6 @@ pub enum QuartzError {
     IdenticalCollateralRepayMarkets,
     #[msg("Invalid starting vault balance")]
     InvalidStartingVaultBalance,
+    #[msg("Provided token ledger is not empty")]
+    FreshTokenLedgerRequired,
 }

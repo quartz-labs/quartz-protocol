@@ -3,9 +3,8 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { BanksClient } from "solana-bankrun";
 import { Quartz } from "../../target/types/quartz";
 import { processTransaction } from "./helpers";
-import { DRIFT_ORACLE_SOL, DRIFT_SPOT_MARKET_SOL, WSOL_MINT } from "../config/constants";
+import { WSOL_MINT } from "../config/constants";
 import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction } from "@solana/spl-token";
-import { toRemainingAccount } from "./accounts";
 import { AccountMeta } from "./interfaces";
 
 
