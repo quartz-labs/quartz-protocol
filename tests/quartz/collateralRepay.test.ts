@@ -71,13 +71,13 @@ describe("collateral repay", () => {
     tokenLedger = getTokenLedgerPda(user.publicKey);
     
     const driftStateAccount = await connection.getAccountInfo(driftState);
-    const solSpotMarketAccountInfo = await connection.getAccountInfo(solSpotMarket);
-    const usdcSpotMarketAccountInfo = await connection.getAccountInfo(usdcSpotMarket);
-    const oracleSolAccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_SOL);
-    const oracleUsdcAccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_USDC);
     const driftSignerAccountInfo = await connection.getAccountInfo(DRIFT_SIGNER);
     const usdcMintAccountInfo = await connection.getAccountInfo(USDC_MINT);
     const solMintAccountInfo = await connection.getAccountInfo(WSOL_MINT);
+    const oracleSolAccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_SOL);
+    const oracleUsdcAccountInfo = await connection.getAccountInfo(DRIFT_ORACLE_USDC);
+    const solSpotMarketAccountInfo = await connection.getAccountInfo(solSpotMarket);
+    const usdcSpotMarketAccountInfo = await connection.getAccountInfo(usdcSpotMarket);
     const solSpotMarketVaultAccountInfo = await connection.getAccountInfo(solSpotMarketVault);
     const usdcSpotMarketVaultAccountInfo = await connection.getAccountInfo(usdcSpotMarketVault);
     const pythOracleUsdcAccountInfo = await connection.getAccountInfo(getPythOracle(0));
@@ -292,7 +292,7 @@ describe("collateral repay", () => {
       })
       .remainingAccounts([
         toRemainingAccount(DRIFT_ORACLE_SOL, false, false),
-        toRemainingAccount(solSpotMarket, true, false),
+        toRemainingAccount(solSpotMarket, false, false),
         toRemainingAccount(DRIFT_ORACLE_USDC, false, false),
         toRemainingAccount(usdcSpotMarket, true, false),
       ])
