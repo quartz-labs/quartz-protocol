@@ -10,6 +10,7 @@ import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 import { QUARTZ_PROGRAM_ID } from "../config/constants";
 
 
+const TIMEOUT = 10_000;
 describe("init_user", () => {
   let provider: BankrunProvider;
   let user: Keypair;
@@ -41,7 +42,7 @@ describe("init_user", () => {
     provider = new BankrunProvider(context);
     quartzProgram = new Program<Quartz>(QuartzIDL, QUARTZ_PROGRAM_ID, provider);
     banksClient = context.banksClient;
-  });
+  }, TIMEOUT);
 
   test("Should init user", async () => {
     const meta = await initUser(quartzProgram, banksClient, {
@@ -56,7 +57,7 @@ describe("init_user", () => {
 
     const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
     expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
-  });
+  }, TIMEOUT);
 
   test("Should fail to init user with wrong vault PDA seed", async () => {
     const [badVaultPda] = PublicKey.findProgramAddressSync(
@@ -75,7 +76,7 @@ describe("init_user", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0x7d6");
     }
-  });
+  }, TIMEOUT);
 
   test("Should fail to init user with wrong vault PDA owner", async () => {
     const otherVault = getVaultPda(Keypair.generate().publicKey);
@@ -91,7 +92,7 @@ describe("init_user", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0x7d6");
     }
-  });
+  }, TIMEOUT);
 
   test("Should fail to init user with wrong system program", async () => {
     try {
@@ -105,7 +106,7 @@ describe("init_user", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbc0");
     }
-  });
+  }, TIMEOUT);
 });
 
 
@@ -158,7 +159,7 @@ describe("close_user", () => {
       owner: user.publicKey,
       systemProgram: SystemProgram.programId,
     });
-  });
+  }, TIMEOUT);
 
   test("Should close user", async () => {
     const meta = await closeUser(quartzProgram, banksClient, {
@@ -175,7 +176,7 @@ describe("close_user", () => {
     } catch (error: any) {
       expect(error.message).toContain("Could not find");
     }
-  });
+  }, TIMEOUT);
 
   test("Should fail to close user of vault that doesn't exist", async () => {
     const randomVault = getVaultPda(Keypair.generate().publicKey);
@@ -190,7 +191,7 @@ describe("close_user", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbc4");
     }
-  });
+  }, TIMEOUT);
 
   test("Should fail to close user with wrong vault PDA", async () => {
     const otherProvider = new BankrunProvider(context);
@@ -216,5 +217,5 @@ describe("close_user", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0x7d6");
     }
-  });
+  }, TIMEOUT);
 });

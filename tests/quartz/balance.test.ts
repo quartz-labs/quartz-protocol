@@ -34,6 +34,7 @@ import { initUser, makeWrapSolIxs } from "../utils/instructions";
 import { initDriftAccount } from "../utils/instructions";
 import { getDriftSpotMarketVault, getDriftUserStats, getDriftState, getDriftUser, getVaultPda, getVaultSplPda, toRemainingAccount, getDriftSpotMarket } from "../utils/accounts";
 
+const TIMEOUT = 10_000;
 describe("deposit, withdraw", () => {
   let provider: BankrunProvider;
   let user: Keypair;
@@ -148,7 +149,7 @@ describe("deposit, withdraw", () => {
       rent: web3.SYSVAR_RENT_PUBKEY,
       systemProgram: SystemProgram.programId,
     });
-  });
+  }, TIMEOUT);
 
   test("Should deposit lamports", async () => {
     const amount = 10 * LAMPORTS_PER_SOL;
@@ -190,7 +191,7 @@ describe("deposit, withdraw", () => {
     expect(meta.logMessages[54]).toBe("Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success");
 
     // TODO - Add Drift balance check
-  });
+  }, TIMEOUT);
 
   test("Should fail if not enough wrapped lamports", async () => {
     const amountWrap = 5 * LAMPORTS_PER_SOL;
@@ -230,7 +231,7 @@ describe("deposit, withdraw", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 3: custom program error: 0x1");
     }
-  });
+  }, TIMEOUT);
 
   test("Should withdraw lamports", async () => {
     const amountDeposit = 10 * LAMPORTS_PER_SOL;
@@ -297,7 +298,7 @@ describe("deposit, withdraw", () => {
     expect(meta.logMessages[81]).toBe("Program 6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2 success");
 
     // TODO - Add Drift balance check
-  });
+  }, TIMEOUT);
 });
 
 

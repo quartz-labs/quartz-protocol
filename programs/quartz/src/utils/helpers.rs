@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 use solana_program::instruction::Instruction;
 use crate::{
     check, config::{QuartzError, DRIFT_MARKETS, U16_SIZE, U64_SIZE, U8_SIZE}, state::DriftMarket
@@ -57,4 +57,19 @@ pub fn normalize_price_exponents(price_a: u64, exponent_a: i32, price_b: u64, ex
             .ok_or(QuartzError::MathOverflow)?;
         return Ok((amount_a_normalized, price_b as u128));
     }
+}
+
+pub fn validate_start_collateral_repay_ix(start_collateral_repay: &Instruction) -> Result<()> {
+    check!(
+        start_collateral_repay.program_id.eq(&crate::id()),
+        QuartzError::IllegalCollateralRepayInstructions
+    );
+
+    check!(
+        start_collateral_repay.data[..8]
+            .eq(&crate::instruction::StartCollateralRepay::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
+    );
+
+    Ok(())
 }

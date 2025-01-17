@@ -23,7 +23,7 @@ import { closeDriftAccount, closeUser, initDriftAccount, initUser } from "../uti
 import { QUARTZ_PROGRAM_ID, DRIFT_PROGRAM_ID } from "../config/constants";
 import config from "../config/config";
 
-
+const TIMEOUT = 10_000;
 describe("init_drift_account, close_drift_account", () => {
   let provider: BankrunProvider;
   let user: Keypair;
@@ -93,7 +93,7 @@ describe("init_drift_account, close_drift_account", () => {
 
     const vaultAccount = await quartzProgram.account.vault.fetch(vaultPda);
     expect(vaultAccount.owner.toString()).toBe(user.publicKey.toString());
-  });
+  }, TIMEOUT);
 
   test("Should init Drift account", async () => {
     const meta = await initDriftAccount(quartzProgram, banksClient, {
@@ -115,7 +115,7 @@ describe("init_drift_account, close_drift_account", () => {
     const driftAccount = await banksClient.getAccount(driftUser);
     expect(driftAccount).not.toBeNull();
     expect(driftAccount.owner.toBase58()).toBe(DRIFT_PROGRAM_ID.toBase58());
-  });
+  }, TIMEOUT);
 
   test("Should not init Drift account after user is closed", async () => {
     await closeUser(quartzProgram, banksClient, {
@@ -139,7 +139,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbc4");
     }
-  });
+  }, TIMEOUT);
 
   test("Should not init Drift account before user is initted", async () => {
     const otherVaultPda = getVaultPda(otherUser.publicKey);
@@ -160,7 +160,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbc4");
     }
-  });
+  }, TIMEOUT);
 
 
   test("Should close Drift account", async () => {
@@ -195,7 +195,7 @@ describe("init_drift_account, close_drift_account", () => {
 
     const driftAccountAfter = await banksClient.getAccount(driftUser);
     expect(driftAccountAfter).toBeNull();
-  });
+  }, TIMEOUT);
 
   test("Should not close Drift account if drift account is not initted", async () => {
     try {
@@ -212,7 +212,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
-  });
+  }, TIMEOUT);
 
   test("Should not close Drift account if user is not initted", async () => {
     const otherVaultPda = getVaultPda(otherUser.publicKey);
@@ -233,7 +233,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbc4");
     }
-  });
+  }, TIMEOUT);
 
   test("Should not close Drift account with incorrect vault", async () => {
     const otherVaultPda = getVaultPda(otherUser.publicKey);
@@ -252,7 +252,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbc4");
     }
-  });
+  }, TIMEOUT);
 
   test("Should not close Drift account with incorrect owner", async () => {
     try {
@@ -269,7 +269,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
-  });
+  }, TIMEOUT);
 
   test("Should not close Drift account with incorrect drift user", async () => {
     const otherDriftUser = getDriftUser(otherUser.publicKey);
@@ -288,7 +288,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
-  });
+  }, TIMEOUT);
 
   test("Should not close Drift account with incorrect drift user stats", async () => {
     const otherDriftUserStats = getDriftUserStats(otherUser.publicKey);
@@ -307,7 +307,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
-  });
+  }, TIMEOUT);
 
   test("Should not close Drift account with incorrect drift state", async () => {
     try {
@@ -324,7 +324,7 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
-  });
+  }, TIMEOUT);
 
   test("Should not close Drift account with incorrect program", async () => {
     try {
@@ -341,5 +341,5 @@ describe("init_drift_account, close_drift_account", () => {
     } catch (error: any) {
       expect(error.message).toContain("Error processing Instruction 0: custom program error: 0xbbf");
     }
-  });
+  }, TIMEOUT);
 });

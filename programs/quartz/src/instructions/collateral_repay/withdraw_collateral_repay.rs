@@ -1,14 +1,10 @@
 use anchor_lang::{
     prelude::*, 
-    solana_program::{
-        instruction::Instruction,
-        sysvar::instructions::{
-            self,
-            load_current_index_checked, 
-            load_instruction_at_checked
-        }
-    }, 
-    Discriminator
+    solana_program::sysvar::instructions::{
+        self,
+        load_current_index_checked, 
+        load_instruction_at_checked
+    },
 };
 use anchor_spl::token_interface::{
     TransferChecked,
@@ -43,17 +39,17 @@ use crate::{
         PYTH_MAX_PRICE_AGE_SECONDS
     }, 
     load_mut, 
-    state::{DriftMarket, TokenLedger, Vault}, 
+    state::{DriftMarket, CollateralRepayLedger, Vault}, 
     utils::{
         get_drift_margin_calculation, 
         get_drift_market, 
         get_quartz_account_health, 
-        normalize_price_exponents
+        normalize_price_exponents, validate_start_collateral_repay_ix
     }
 };
 
 #[derive(Accounts)]
-pub struct EndCollateralRepay<'info> {
+pub struct WithdrawCollateralRepay<'info> {
     #[account(mut)]
     pub caller: Signer<'info>,
 
@@ -131,40 +127,17 @@ pub struct EndCollateralRepay<'info> {
 
     #[account(
         mut,
-        seeds = [b"token_ledger".as_ref(), owner.key().as_ref()],
+        seeds = [b"collateral_repay_ledger".as_ref(), owner.key().as_ref()],
         bump,
         close = caller
     )]
-    pub token_ledger: Box<Account<'info, TokenLedger>>,
+    pub ledger: Box<Account<'info, CollateralRepayLedger>>
 }
 
-pub fn end_collateral_repay_handler<'info>(
-    ctx: Context<'_, '_, 'info, 'info, EndCollateralRepay<'info>>,
-    amount_withdraw_base_units: u64,
+pub fn withdraw_collateral_repay_handler<'info>(
+    ctx: Context<'_, '_, 'info, 'info, WithdrawCollateralRepay<'info>>,
     withdraw_market_index: u16
 ) -> Result<()> {
-    let index: usize = load_current_index_checked(
-        &ctx.accounts.instructions.to_account_info()
-    )?.into();
-    let start_instruction = load_instruction_at_checked(
-        index - 1, 
-        &ctx.accounts.instructions.to_account_info()
-    )?;
-
-    validate_instruction_order(&start_instruction)?;
-
-    let withdraw_market = get_drift_market(withdraw_market_index)?;
-    check!(
-        &ctx.accounts.spl_mint.key().eq(&withdraw_market.mint),
-        QuartzError::InvalidMint
-    );
-
-    // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
-    check!(
-        ctx.accounts.vault_spl.amount == 0,
-        QuartzError::InvalidStartingVaultBalance
-    );
-
     let owner = ctx.accounts.owner.key();
     let vault_seeds = &[
         b"vault",
@@ -172,6 +145,32 @@ pub fn end_collateral_repay_handler<'info>(
         &[ctx.accounts.vault.bump]
     ];
     let signer_seeds_vault = &[&vault_seeds[..]];
+
+    let withdraw_market = get_drift_market(withdraw_market_index)?;
+    check!(
+        &ctx.accounts.spl_mint.key().eq(&withdraw_market.mint),
+        QuartzError::InvalidMint
+    );
+
+    let index: usize = load_current_index_checked(
+        &ctx.accounts.instructions.to_account_info()
+    )?.into();
+    let start_instruction = load_instruction_at_checked(
+        index - 3, 
+        &ctx.accounts.instructions.to_account_info()
+    )?;
+    validate_start_collateral_repay_ix(&start_instruction)?;
+
+    // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
+    check!(
+        ctx.accounts.vault_spl.amount == 0,
+        QuartzError::InvalidStartingVaultBalance
+    );
+
+    // Calculate withdraw tokens sent to jupiter swap
+    let starting_withdraw_spl_balance = ctx.accounts.ledger.withdraw;
+    let current_withdraw_spl_balance = ctx.accounts.caller_spl.amount;
+    let amount_withdraw_base_units = starting_withdraw_spl_balance - current_withdraw_spl_balance;
 
     // Drift Withdraw CPI
     let mut cpi_ctx = CpiContext::new_with_signer(
@@ -195,7 +194,7 @@ pub fn end_collateral_repay_handler<'info>(
     drift_withdraw(cpi_ctx, withdraw_market_index, amount_withdraw_base_units, true)?;
 
     // Validate values of amount deposited and amount withdrawn are within slippage
-    let amount_deposited = ctx.accounts.token_ledger.balance;
+    let true_amount_deposited = ctx.accounts.ledger.deposit;
     let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
 
     let deposit_market_index = u16::from_le_bytes(start_instruction.data[16..18].try_into().unwrap());
@@ -203,7 +202,7 @@ pub fn end_collateral_repay_handler<'info>(
 
     validate_prices(
         &ctx, 
-        amount_deposited, 
+        true_amount_deposited, 
         true_amount_withdrawn, 
         deposit_market, 
         withdraw_market
@@ -250,27 +249,8 @@ pub fn end_collateral_repay_handler<'info>(
 }
 
 #[inline(never)]
-fn validate_instruction_order<'info>(
-    start_instruction: &Instruction
-) -> Result<()> {
-    // Check the previous instruction is start_collateral_repay
-    check!(
-        start_instruction.program_id.eq(&crate::id()),
-        QuartzError::IllegalCollateralRepayInstructions
-    );
-
-    check!(
-        start_instruction.data[..8]
-            .eq(&crate::instruction::StartCollateralRepay::DISCRIMINATOR),
-        QuartzError::IllegalCollateralRepayInstructions
-    );
-
-    Ok(())
-}
-
-#[inline(never)]
 fn validate_prices<'info>(
-    ctx: &Context<'_, '_, '_, 'info, EndCollateralRepay<'info>>,
+    ctx: &Context<'_, '_, '_, 'info, WithdrawCollateralRepay<'info>>,
     deposit_amount: u64,
     withdraw_amount: u64,
     deposit_market: &DriftMarket,
@@ -349,7 +329,7 @@ fn validate_prices<'info>(
 
 #[inline(never)]
 fn validate_account_health<'info>(
-    ctx: &Context<'_, '_, 'info, 'info, EndCollateralRepay<'info>>,
+    ctx: &Context<'_, '_, 'info, 'info, WithdrawCollateralRepay<'info>>,
     deposit_market_index: u16,
     withdraw_market_index: u16
 ) -> Result<()> {

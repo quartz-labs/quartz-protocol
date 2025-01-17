@@ -6,38 +6,18 @@ use anchor_lang::{
             load_current_index_checked, 
             load_instruction_at_checked
         }
-    }, system_program::{create_account, CreateAccount}, Discriminator
+    }, 
+    Discriminator
 };
 use anchor_spl::token_interface::{
-    TransferChecked,
-    transfer_checked,
     TokenInterface, 
     TokenAccount, 
-    Mint,
-    CloseAccount,
-    close_account
-};
-use drift::{
-    cpi::{
-        accounts::Deposit as DriftDeposit,
-        deposit as drift_deposit
-    }, 
-    state::{
-        state::State as DriftState, 
-        user::User as DriftUser
-    },
-    program::Drift
+    Mint
 };
 use crate::{
     check, 
-    config::QuartzError, 
-    load_mut, 
-    state::{TokenLedger, Vault}, 
-    utils::{
-        get_drift_margin_calculation, 
-        get_drift_market, 
-        get_quartz_account_health
-    }
+    config::{QuartzError, JUPITER_ID, JUPITER_SWAP_DISCRIMINATORS},
+    state::{CollateralRepayLedger, Vault}
 };
 
 #[derive(Accounts)]
@@ -47,11 +27,19 @@ pub struct StartCollateralRepay<'info> {
 
     #[account(
         mut,
-        associated_token::mint = spl_mint,
+        associated_token::mint = mint_deposit,
         associated_token::authority = caller,
-        associated_token::token_program = token_program
+        associated_token::token_program = token_program_deposit
     )]
-    pub caller_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub caller_deposit_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint_withdraw,
+        associated_token::authority = caller,
+        associated_token::token_program = token_program_withdraw
+    )]
+    pub caller_withdraw_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Can be any account, once it has a Vault
     pub owner: UncheckedAccount<'info>,
@@ -64,45 +52,13 @@ pub struct StartCollateralRepay<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
-    #[account(
-        init,
-        seeds = [vault.key().as_ref(), spl_mint.key().as_ref()],
-        bump,
-        payer = caller,
-        token::mint = spl_mint,
-        token::authority = vault
-    )]
-    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub mint_deposit: Box<InterfaceAccount<'info, Mint>>,
 
-    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
+    pub mint_withdraw: Box<InterfaceAccount<'info, Mint>>,
 
-    #[account(
-        mut,
-        seeds = [b"user".as_ref(), vault.key().as_ref(), (0u16).to_le_bytes().as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_user: AccountLoader<'info, DriftUser>,
-    
-    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
-    #[account(mut)]
-    pub drift_user_stats: UncheckedAccount<'info>,
+    pub token_program_deposit: Interface<'info, TokenInterface>,
 
-    #[account(
-        mut,
-        seeds = [b"drift_state".as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_state: Box<Account<'info, DriftState>>,
-    
-    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
-    #[account(mut)]
-    pub spot_market_vault: UncheckedAccount<'info>,
-
-    pub token_program: Interface<'info, TokenInterface>,
-
-    pub drift_program: Program<'info, Drift>,
+    pub token_program_withdraw: Interface<'info, TokenInterface>,
 
     pub system_program: Program<'info, System>,
 
@@ -110,141 +66,93 @@ pub struct StartCollateralRepay<'info> {
     #[account(address = instructions::ID)]
     pub instructions: UncheckedAccount<'info>,
 
-    /// CHECK: Accounts struct will overflow stack, check is done in handler instead
     #[account(
-        mut,
-        seeds = [b"token_ledger".as_ref(), owner.key().as_ref()],
+        init,
+        seeds = [b"collateral_repay_ledger".as_ref(), owner.key().as_ref()],
         bump,
+        payer = caller,
+        space = CollateralRepayLedger::INIT_SPACE
     )]
-    pub token_ledger: UncheckedAccount<'info>,
+    pub ledger: Box<Account<'info, CollateralRepayLedger>>,
 }
 
 pub fn start_collateral_repay_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
-    amount_deposit_base_units: u64,
-    deposit_market_index: u16
 ) -> Result<()> {
     let index: usize = load_current_index_checked(
         &ctx.accounts.instructions.to_account_info()
     )?.into();
-    let end_instruction = load_instruction_at_checked(
+    let swap_instruction = load_instruction_at_checked(
         index + 1, 
         &ctx.accounts.instructions.to_account_info()
     )?;
-
-    validate_instruction_order(&end_instruction)?;
-
-    validate_user_accounts(&ctx, &end_instruction)?;
-
-    let (
-        deposit_market_index, 
-        withdraw_market_index
-    ) = validate_drift_markets(
-        deposit_market_index, 
-        &ctx.accounts.spl_mint.key(), 
-        &end_instruction
+    let deposit_instruction = load_instruction_at_checked(
+        index + 2, 
+        &ctx.accounts.instructions.to_account_info()
     )?;
+    let withdraw_instruction = load_instruction_at_checked(
+        index + 3, 
+        &ctx.accounts.instructions.to_account_info()
+    )?;
+    
+    validate_instruction_order(&swap_instruction, &deposit_instruction, &withdraw_instruction)?;
 
-    // Validate account health if the owner isn't the caller
-    if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
-        validate_account_health(&ctx, deposit_market_index, withdraw_market_index)?;
-    }
+    validate_user_accounts_context(&deposit_instruction, &withdraw_instruction)?;
 
-    let vault_bump = ctx.accounts.vault.bump;
-    let owner = ctx.accounts.owner.key();
-    let seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
-    let signer_seeds = &[&seeds[..]];
+    validate_drift_markets(&deposit_instruction, &withdraw_instruction)?;
 
-    // Transfer tokens from callers's ATA to vault's ATA
-    transfer_checked(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(), 
-            TransferChecked { 
-                from: ctx.accounts.caller_spl.to_account_info(), 
-                to: ctx.accounts.vault_spl.to_account_info(), 
-                authority: ctx.accounts.caller.to_account_info(),
-                mint: ctx.accounts.spl_mint.to_account_info(),
-            }
+    validate_swap_context(&swap_instruction, &deposit_instruction, &withdraw_instruction)?;
+
+    // Log deposit and withdraw starting balances
+    let ledger = &mut ctx.accounts.ledger;
+    ledger.deposit = ctx.accounts.caller_deposit_spl.amount;
+    ledger.withdraw = ctx.accounts.caller_withdraw_spl.amount;
+
+    Ok(())
+}
+
+#[inline(never)]
+pub fn validate_instruction_order<'info>(
+    swap_instruction: &Instruction,
+    deposit_instruction: &Instruction,
+    withdraw_instruction: &Instruction,
+) -> Result<()> {
+    // This is the 1st ix
+
+    // Check Jupiter swap (2nd ix)
+    check!(
+        swap_instruction.program_id.eq(&JUPITER_ID),
+        QuartzError::IllegalCollateralRepayInstructions
+    );
+
+    check!(
+        JUPITER_SWAP_DISCRIMINATORS.iter().any(|discriminator| 
+            swap_instruction.data[..8].eq(discriminator)
         ),
-        amount_deposit_base_units,
-        ctx.accounts.spl_mint.decimals
-    )?;
-
-    // Drift Deposit CPI
-    let mut cpi_ctx = CpiContext::new_with_signer(
-        ctx.accounts.drift_program.to_account_info(),
-        DriftDeposit {
-            state: ctx.accounts.drift_state.to_account_info(),
-            user: ctx.accounts.drift_user.to_account_info(),
-            user_stats: ctx.accounts.drift_user_stats.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
-            spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
-            user_token_account: ctx.accounts.vault_spl.to_account_info(),
-            token_program: ctx.accounts.token_program.to_account_info(),
-        },
-        signer_seeds
+        QuartzError::IllegalCollateralRepayInstructions
     );
 
-    cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
-
-    // reduce_only = true means that the caller can not deposit more than the user's borrowed position / create a collateral position
-    drift_deposit(cpi_ctx, deposit_market_index, amount_deposit_base_units, true)?;
-
-    // Return any remaining balance (in case return_only prevented full deposit)
-    let remaining_balance = ctx.accounts.vault_spl.amount;
-    if remaining_balance > 0 {
-        transfer_checked(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(), 
-                TransferChecked { 
-                    from: ctx.accounts.vault_spl.to_account_info(), 
-                    to: ctx.accounts.caller_spl.to_account_info(), 
-                    authority: ctx.accounts.vault.to_account_info(),
-                    mint: ctx.accounts.spl_mint.to_account_info(),
-                }, 
-                signer_seeds
-            ),
-            remaining_balance,
-            ctx.accounts.spl_mint.decimals
-        )?;
-    }
-
-    // Close vault's ATA
-    let cpi_ctx_close = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        CloseAccount {
-            account: ctx.accounts.vault_spl.to_account_info(),
-            destination: ctx.accounts.caller.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
-        },
-        signer_seeds
-    );
-    close_account(cpi_ctx_close)?;
-
-    // Log the amount of tokens deposited to the ledger
-    let true_amount_deposited = amount_deposit_base_units - remaining_balance;
-    track_token_ledger_balance(&ctx, true_amount_deposited)?;
-
-    Ok(())
-}
-
-#[inline(never)]
-fn validate_instruction_order<'info>(
-    end_instruction: &Instruction
-) -> Result<()> {
-    // Check the next instruction is end_collateral_repay
+    // Check deposit_collateral_repay (3rd ix)
     check!(
-        end_instruction.program_id.eq(&crate::id()),
+        deposit_instruction.program_id.eq(&crate::id()),
         QuartzError::IllegalCollateralRepayInstructions
     );
 
     check!(
-        end_instruction.data[..8]
-            .eq(&crate::instruction::EndCollateralRepay::DISCRIMINATOR),
+        deposit_instruction.data[..8]
+            .eq(&crate::instruction::DepositCollateralRepay::DISCRIMINATOR),
+        QuartzError::IllegalCollateralRepayInstructions
+    );
+
+    // Check withdraw_collateral_repay (4th ix)
+    check!(
+        withdraw_instruction.program_id.eq(&crate::id()),
+        QuartzError::IllegalCollateralRepayInstructions
+    );
+
+    check!(
+        withdraw_instruction.data[..8]
+            .eq(&crate::instruction::WithdrawCollateralRepay::DISCRIMINATOR),
         QuartzError::IllegalCollateralRepayInstructions
     );
 
@@ -252,43 +160,42 @@ fn validate_instruction_order<'info>(
 }
 
 #[inline(never)]
-fn validate_user_accounts<'info>(
-    ctx: &Context<'_, '_, '_, 'info, StartCollateralRepay<'info>>,
-    end_instruction: &Instruction
+fn validate_user_accounts_context<'info>(
+    deposit_instruction: &Instruction,
+    withdraw_instruction: &Instruction
 ) -> Result<()> {
-    let start_caller = end_instruction.accounts[0].pubkey;
+    let deposit_caller = deposit_instruction.accounts[0].pubkey;
+    let withdraw_caller = withdraw_instruction.accounts[0].pubkey;
     check!(
-        ctx.accounts.caller.key().eq(&start_caller),
+        deposit_caller.eq(&withdraw_caller),
         QuartzError::InvalidUserAccounts
     );
 
-    let start_owner = end_instruction.accounts[2].pubkey;
+    let deposit_owner = deposit_instruction.accounts[2].pubkey;
+    let withdraw_owner = withdraw_instruction.accounts[2].pubkey;
     check!(
-        ctx.accounts.owner.key().eq(&start_owner),
+        deposit_owner.eq(&withdraw_owner),
         QuartzError::InvalidUserAccounts
     );
 
-    let start_vault = end_instruction.accounts[3].pubkey;
+    let deposit_vault = deposit_instruction.accounts[3].pubkey;
+    let withdraw_vault = withdraw_instruction.accounts[3].pubkey;
     check!(
-        ctx.accounts.vault.key().eq(&start_vault),
+        deposit_vault.eq(&withdraw_vault),
         QuartzError::InvalidUserAccounts
     );
 
-    let start_drift_user = end_instruction.accounts[6].pubkey;
+    let deposit_drift_user = deposit_instruction.accounts[6].pubkey;
+    let withdraw_drift_user = withdraw_instruction.accounts[6].pubkey;
     check!(
-        ctx.accounts.drift_user.key().eq(&start_drift_user),
+        deposit_drift_user.eq(&withdraw_drift_user),
         QuartzError::InvalidUserAccounts
     );
 
-    let start_drift_user_stats = end_instruction.accounts[7].pubkey;
+    let deposit_drift_user_stats = deposit_instruction.accounts[7].pubkey;
+    let withdraw_drift_user_stats = withdraw_instruction.accounts[7].pubkey;
     check!(
-        ctx.accounts.drift_user_stats.key().eq(&start_drift_user_stats),
-        QuartzError::InvalidUserAccounts
-    );
-
-    let start_token_ledger = end_instruction.accounts[17].pubkey;
-    check!(
-        ctx.accounts.token_ledger.key().eq(&start_token_ledger),
+        deposit_drift_user_stats.eq(&withdraw_drift_user_stats),
         QuartzError::InvalidUserAccounts
     );
 
@@ -297,91 +204,54 @@ fn validate_user_accounts<'info>(
 
 #[inline(never)]
 fn validate_drift_markets<'info>(
-    deposit_market_index: u16,
-    spl_mint: &Pubkey,
-    end_instruction: &Instruction
-) -> Result<(u16, u16)> {
-    // Validate deposit market is valid
-    let deposit_market = get_drift_market(deposit_market_index)?;
-    check!(
-        spl_mint.eq(&deposit_market.mint),
-        QuartzError::InvalidMint
-    );
-
-    // Validate deposit and withdraw markets are different
-    let withdraw_market_index = u16::from_le_bytes(end_instruction.data[16..18].try_into().unwrap());
-    check!(
-        !deposit_market.market_index.eq(&withdraw_market_index),
-        QuartzError::IdenticalCollateralRepayMarkets
-    );
-
-    Ok((deposit_market_index, withdraw_market_index))
-}
-
-#[inline(never)]
-fn validate_account_health<'info>(
-    ctx: &Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
-    deposit_market_index: u16,
-    withdraw_market_index: u16
+    deposit_instruction: &Instruction,
+    withdraw_instruction: &Instruction
 ) -> Result<()> {
-    let user = &mut load_mut!(ctx.accounts.drift_user)?;
-    let margin_calculation = get_drift_margin_calculation(
-        user, 
-        &ctx.accounts.drift_state, 
-        withdraw_market_index, 
-        deposit_market_index,
-        &ctx.remaining_accounts
-    )?;
-
-    let quartz_account_health = get_quartz_account_health(margin_calculation)?;
-
+    let deposit_market_index = u16::from_le_bytes(deposit_instruction.data[16..18].try_into().unwrap());
+    let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[16..18].try_into().unwrap());
     check!(
-        quartz_account_health == 0,
-        QuartzError::NotReachedCollateralRepayThreshold
+        !deposit_market_index.eq(&withdraw_market_index),
+        QuartzError::IdenticalCollateralRepayMarkets
     );
 
     Ok(())
 }
 
-fn track_token_ledger_balance<'info>(
-    ctx: &Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
-    balance: u64
+#[inline(never)]
+fn validate_swap_context<'info>(
+    swap_instruction: &Instruction,
+    deposit_instruction: &Instruction,
+    withdraw_instruction: &Instruction
 ) -> Result<()> {
-    // Verify account is fresh
+    // Validate mints
+    let swap_out_mint = swap_instruction.accounts[6].pubkey;
+    let deposit_mint = deposit_instruction.accounts[5].pubkey;
     check!(
-        ctx.accounts.token_ledger.data_is_empty(),
-        QuartzError::FreshTokenLedgerRequired
+        swap_out_mint.eq(&deposit_mint),
+        QuartzError::InvalidMint
     );
 
-    // Create account
-    let token_ledger_bump = ctx.bumps.token_ledger;
-    let owner = ctx.accounts.owner.key();
-    let seeds = &[
-        b"token_ledger",
-        owner.as_ref(),
-        &[token_ledger_bump]
-    ];
-    let signer_seeds = &[&seeds[..]];
+    let swap_in_mint = swap_instruction.accounts[5].pubkey;
+    let withdraw_mint = withdraw_instruction.accounts[5].pubkey;
+    check!(
+        swap_in_mint.eq(&withdraw_mint),
+        QuartzError::InvalidMint
+    );
 
-    let rent = Rent::get()?.minimum_balance(TokenLedger::INIT_SPACE);
-    create_account(
-        CpiContext::new_with_signer(
-            ctx.accounts.system_program.to_account_info(),
-            CreateAccount {
-                from: ctx.accounts.caller.to_account_info(),
-                to: ctx.accounts.token_ledger.to_account_info(),
-            },
-            signer_seeds
-        ), 
-        rent, 
-        TokenLedger::INIT_SPACE.try_into().unwrap(),
-        ctx.program_id
-    )?;
+    // Validate ATAs
+    let swap_out_account = swap_instruction.accounts[3].pubkey;
+    let deposit_spl_account = deposit_instruction.accounts[1].pubkey;
+    check!(
+        swap_out_account.eq(&deposit_spl_account),
+        QuartzError::InvalidSourceTokenAccount
+    );
 
-    // Initialize account data
-    let mut token_ledger_data = ctx.accounts.token_ledger.try_borrow_mut_data()?;
-    token_ledger_data[..8].copy_from_slice(&TokenLedger::DISCRIMINATOR);
-    token_ledger_data[8..16].copy_from_slice(&balance.to_le_bytes());
-    
+    let swap_in_account = swap_instruction.accounts[2].pubkey;
+    let withdraw_spl_account = withdraw_instruction.accounts[1].pubkey;
+    check!(
+        swap_in_account.eq(&withdraw_spl_account),
+        QuartzError::InvalidSourceTokenAccount
+    );
+
     Ok(())
 }

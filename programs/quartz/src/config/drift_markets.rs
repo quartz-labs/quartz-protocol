@@ -4,7 +4,7 @@ use solana_program::{
 };
 use crate::state::DriftMarket;
 
-pub const DRIFT_MARKETS: [DriftMarket; 5] = [
+pub const DRIFT_MARKETS: [DriftMarket; 6] = [
     DriftMarket { // WSOL
         market_index: 1,
         mint: pubkey!("So11111111111111111111111111111111111111112"),
@@ -34,5 +34,11 @@ pub const DRIFT_MARKETS: [DriftMarket; 5] = [
         mint: pubkey!("USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA"),
         pyth_feed: "0x77f0971af11cc8bac224917275c1bf55f2319ed5c654a1ca955c82fa2d297ea1",
         base_units_per_token: 1_000_000
+    },
+    DriftMarket { // wBTC
+        market_index: 3,
+        mint: pubkey!("3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh"),
+        pyth_feed: "0xc9d8b075a5c69303365ae23633d4e085199bf5c520a3b90fed1322a0342ffc33",
+        base_units_per_token: 100_000_000
     }
 ];

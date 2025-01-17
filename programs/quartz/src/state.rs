@@ -19,10 +19,11 @@ impl Space for Vault {
 }
 
 #[account]
-pub struct TokenLedger {
-    pub balance: u64
+pub struct CollateralRepayLedger {
+    pub deposit: u64,
+    pub withdraw: u64
 }
 
-impl Space for TokenLedger {
-    const INIT_SPACE: usize = ANCHOR_DISCRIMINATOR + U64_SIZE;
+impl Space for CollateralRepayLedger {
+    const INIT_SPACE: usize = ANCHOR_DISCRIMINATOR + U64_SIZE + U64_SIZE;
 }
