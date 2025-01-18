@@ -194,6 +194,7 @@ pub fn deposit_collateral_repay_handler<'info>(
     drift_deposit(cpi_ctx, deposit_market_index, amount_deposit_base_units, true)?;
 
     // Return any remaining balance (in case return_only prevented full deposit)
+    ctx.accounts.vault_spl.reload()?;
     let remaining_balance = ctx.accounts.vault_spl.amount;
     if remaining_balance > 0 {
         transfer_checked(

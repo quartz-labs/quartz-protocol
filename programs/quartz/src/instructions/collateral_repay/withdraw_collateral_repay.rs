@@ -194,8 +194,9 @@ pub fn withdraw_collateral_repay_handler<'info>(
     drift_withdraw(cpi_ctx, withdraw_market_index, amount_withdraw_base_units, true)?;
 
     // Validate values of amount deposited and amount withdrawn are within slippage
-    let true_amount_deposited = ctx.accounts.ledger.deposit;
+    ctx.accounts.vault_spl.reload()?;
     let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
+    let true_amount_deposited = ctx.accounts.ledger.deposit;
 
     let deposit_market_index = u16::from_le_bytes(start_instruction.data[16..18].try_into().unwrap());
     let deposit_market = get_drift_market(deposit_market_index)?;

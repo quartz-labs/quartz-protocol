@@ -151,6 +151,7 @@ pub fn deposit_handler<'info>(
     drift_deposit(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
 
     // Return any remaining balance (in case return_only prevented full deposit)
+    ctx.accounts.vault_spl.reload()?;
     let remaining_balance = ctx.accounts.vault_spl.amount;
     if remaining_balance > 0 {
         transfer_checked(

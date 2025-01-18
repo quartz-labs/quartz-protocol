@@ -146,6 +146,7 @@ pub fn withdraw_handler<'info>(
     drift_withdraw(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
 
     // Transfer tokens to owner's ATA, getting the true amount withdrawn (in case return_only prevented full withdraw)
+    ctx.accounts.vault_spl.reload()?;
     let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
     transfer_checked(
         CpiContext::new_with_signer(
