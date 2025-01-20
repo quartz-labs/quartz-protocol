@@ -16,7 +16,7 @@ use anchor_spl::token_interface::{
 };
 use crate::{
     check, 
-    config::{QuartzError, JUPITER_ID, JUPITER_SWAP_DISCRIMINATORS},
+    config::QuartzError,
     state::{CollateralRepayLedger, Vault}
 };
 
@@ -82,10 +82,6 @@ pub fn start_collateral_repay_handler<'info>(
     let index: usize = load_current_index_checked(
         &ctx.accounts.instructions.to_account_info()
     )?.into();
-    let swap_instruction = load_instruction_at_checked(
-        index + 1, 
-        &ctx.accounts.instructions.to_account_info()
-    )?;
     let deposit_instruction = load_instruction_at_checked(
         index + 2, 
         &ctx.accounts.instructions.to_account_info()
@@ -95,13 +91,13 @@ pub fn start_collateral_repay_handler<'info>(
         &ctx.accounts.instructions.to_account_info()
     )?;
     
-    validate_instruction_order(&swap_instruction, &deposit_instruction, &withdraw_instruction)?;
+    validate_instruction_order(&deposit_instruction, &withdraw_instruction)?;
 
     validate_user_accounts_context(&deposit_instruction, &withdraw_instruction)?;
 
     validate_drift_markets(&deposit_instruction, &withdraw_instruction)?;
 
-    validate_swap_context(&swap_instruction, &deposit_instruction, &withdraw_instruction)?;
+    validate_spl_context(&ctx, &deposit_instruction, &withdraw_instruction)?;
 
     // Log deposit and withdraw starting balances
     let ledger = &mut ctx.accounts.ledger;
@@ -113,24 +109,12 @@ pub fn start_collateral_repay_handler<'info>(
 
 #[inline(never)]
 pub fn validate_instruction_order<'info>(
-    swap_instruction: &Instruction,
     deposit_instruction: &Instruction,
     withdraw_instruction: &Instruction,
 ) -> Result<()> {
     // This is the 1st ix
 
-    // Check Jupiter swap (2nd ix)
-    check!(
-        swap_instruction.program_id.eq(&JUPITER_ID),
-        QuartzError::IllegalCollateralRepayInstructions
-    );
-
-    check!(
-        JUPITER_SWAP_DISCRIMINATORS.iter().any(|discriminator| 
-            swap_instruction.data[..8].eq(discriminator)
-        ),
-        QuartzError::IllegalCollateralRepayInstructions
-    );
+    // 2nd instruction can be anything
 
     // Check deposit_collateral_repay (3rd ix)
     check!(
@@ -207,8 +191,8 @@ fn validate_drift_markets<'info>(
     deposit_instruction: &Instruction,
     withdraw_instruction: &Instruction
 ) -> Result<()> {
-    let deposit_market_index = u16::from_le_bytes(deposit_instruction.data[16..18].try_into().unwrap());
-    let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[16..18].try_into().unwrap());
+    let deposit_market_index = u16::from_le_bytes(deposit_instruction.data[8..10].try_into().unwrap());
+    let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[8..10].try_into().unwrap());
     check!(
         !deposit_market_index.eq(&withdraw_market_index),
         QuartzError::IdenticalCollateralRepayMarkets
@@ -218,38 +202,34 @@ fn validate_drift_markets<'info>(
 }
 
 #[inline(never)]
-fn validate_swap_context<'info>(
-    swap_instruction: &Instruction,
+fn validate_spl_context<'info>(
+    ctx: &Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
     deposit_instruction: &Instruction,
     withdraw_instruction: &Instruction
 ) -> Result<()> {
     // Validate mints
-    let swap_out_mint = swap_instruction.accounts[6].pubkey;
     let deposit_mint = deposit_instruction.accounts[5].pubkey;
     check!(
-        swap_out_mint.eq(&deposit_mint),
+        ctx.accounts.mint_deposit.key().eq(&deposit_mint),
         QuartzError::InvalidMint
     );
 
-    let swap_in_mint = swap_instruction.accounts[5].pubkey;
     let withdraw_mint = withdraw_instruction.accounts[5].pubkey;
     check!(
-        swap_in_mint.eq(&withdraw_mint),
+        ctx.accounts.mint_withdraw.key().eq(&withdraw_mint),
         QuartzError::InvalidMint
     );
 
     // Validate ATAs
-    let swap_out_account = swap_instruction.accounts[3].pubkey;
     let deposit_spl_account = deposit_instruction.accounts[1].pubkey;
     check!(
-        swap_out_account.eq(&deposit_spl_account),
+        ctx.accounts.caller_deposit_spl.key().eq(&deposit_spl_account),
         QuartzError::InvalidSourceTokenAccount
     );
 
-    let swap_in_account = swap_instruction.accounts[2].pubkey;
     let withdraw_spl_account = withdraw_instruction.accounts[1].pubkey;
     check!(
-        swap_in_account.eq(&withdraw_spl_account),
+        ctx.accounts.caller_withdraw_spl.key().eq(&withdraw_spl_account),
         QuartzError::InvalidSourceTokenAccount
     );
 

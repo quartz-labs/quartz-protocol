@@ -198,7 +198,7 @@ pub fn withdraw_collateral_repay_handler<'info>(
     let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
     let true_amount_deposited = ctx.accounts.ledger.deposit;
 
-    let deposit_market_index = u16::from_le_bytes(start_instruction.data[16..18].try_into().unwrap());
+    let deposit_market_index = u16::from_le_bytes(start_instruction.data[8..10].try_into().unwrap());
     let deposit_market = get_drift_market(deposit_market_index)?;
 
     validate_prices(

@@ -148,7 +148,7 @@ pub fn deposit_collateral_repay_handler<'info>(
             index + 1, 
             &ctx.accounts.instructions.to_account_info()
         )?;
-        let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[16..18].try_into().unwrap());
+        let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[8..10].try_into().unwrap());
 
         validate_account_health(&ctx, deposit_market_index, withdraw_market_index)?;
     }
