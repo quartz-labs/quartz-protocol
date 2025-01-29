@@ -83,27 +83,4 @@ pub mod quartz {
     ) -> Result<()> {
         withdraw_collateral_repay_handler(ctx, withdraw_market_index)
     }
-
-    // Legacy Collateral Repay
-
-    pub fn collateral_repay_start<'info>(
-        ctx: Context<'_, '_, '_, 'info, CollateralRepayStart<'info>>,
-        start_withdraw_balance: u64  
-    ) -> Result<()> {
-        collateral_repay_start_handler(ctx, start_withdraw_balance)
-    }
-
-    pub fn collateral_repay_deposit<'info>(
-        ctx: Context<'_, '_, 'info, 'info, CollateralRepayDeposit<'info>>,
-        drift_market_index: u16
-    ) -> Result<()> {
-        collateral_repay_deposit_handler(ctx, drift_market_index)
-    }
-
-    pub fn collateral_repay_withdraw<'info>(
-        ctx: Context<'_, '_, 'info, 'info, CollateralRepayWithdraw<'info>>,
-        drift_market_index: u16
-    ) -> Result<()> {
-        collateral_repay_withdraw_handler(ctx, drift_market_index)
-    }
 }
