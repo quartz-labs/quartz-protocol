@@ -62,8 +62,14 @@ pub mod quartz {
         withdraw_handler(ctx, amount_base_units, drift_market_index, reduce_only)
     }
 
-    // Collateral Repay
+    pub fn topup_card<'info>(
+        ctx: Context<'_, '_, '_, 'info, TopupCard<'info>>,
+        amount_usdc_base_units: u64,
+    ) -> Result<()> {
+        topup_card_handler(ctx, amount_usdc_base_units)
+    }
 
+    // Collateral Repay
     pub fn start_collateral_repay<'info>(
         ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
     ) -> Result<()> {
