@@ -1816,6 +1816,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "drift",
+ "message-transmitter",
  "pyth-solana-receiver-sdk 0.3.2",
  "solana-program",
  "solana-security-txt 0.1.0",
