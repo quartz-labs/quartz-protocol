@@ -5,7 +5,9 @@
     "test:user": "RUST_LOG= jest --runInBand tests/quartz/userQuartz.test.ts tests/quartz/userDrift.test.ts",
     "test:balance": "RUST_LOG= jest --runInBand tests/quartz/balance.test.ts",
     "test:collateralRepay": "RUST_LOG= jest --runInBand tests/quartz/collateralRepay.test.ts",
-    "test:repay": "yarn test:collateralRepay"
+    "test:repay": "yarn test:collateralRepay",
+    "test:topUpCard": "RUST_LOG= jest --runInBand tests/quartz/topUpCard.test.ts",
+    "test:topup": "yarn test:topUpCard"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.29.0",

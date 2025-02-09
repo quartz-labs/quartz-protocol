@@ -15,3 +15,9 @@ export const DRIFT_PROGRAM_ID = new PublicKey("dRiftyHA39MWEi3m9aunc5MzRF1JYuBsb
 export const DRIFT_ORACLE_SOL = new PublicKey("BAtFj4kQttZRVep3UZS2aZRDixkGYgWsbqTBVDbnSsPF");
 export const DRIFT_ORACLE_USDC = new PublicKey("En8hkHLkRe9d9DraYmBTrus518BvmVH448YcvmrFM6Ce");  
 export const DRIFT_SIGNER = new PublicKey("JCNCMFXo5M5qwUPg2Utu1u6YWp3MbygxqBsBeXXJfrw");
+
+export const DOMAIN_BASE = 6;
+export const PROVIDER_BASE_ADDRESS = "0x2f08d2B5E1CBC587cfdf7DA1679F2fe200fe493d";
+export const QUARTZ_CALLER_BASE_ADDRESS = "0x28A0105A0cf8C0485a4956ba14b5274e9ED229DE";
+export const TOKEN_MESSAGE_MINTER_PROGRAM_ID = new PublicKey("CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3");
+export const MESSAGE_TRANSMITTER_PROGRAM_ID = new PublicKey("CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd");

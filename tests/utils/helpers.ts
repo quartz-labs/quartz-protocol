@@ -1,5 +1,5 @@
 import { BanksClient, Clock, ProgramTestContext } from "solana-bankrun";
-import { PublicKey, TransactionMessage, VersionedTransaction, TransactionInstruction, Connection, AddressLookupTableAccount, AccountInfo, AddressLookupTableState } from "@solana/web3.js";
+import { PublicKey, TransactionMessage, VersionedTransaction, TransactionInstruction, Connection, AddressLookupTableAccount, AccountInfo, AddressLookupTableState, Keypair } from "@solana/web3.js";
 import { QuoteResponse } from "@jup-ag/api";
 import { AccountMeta } from "@jup-ag/api";
 import { MarketIndex } from "../config/tokens";
@@ -10,6 +10,7 @@ import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { AccountLayout } from "@solana/spl-token";
 import { ACCOUNT_SIZE } from "@solana/spl-token";
 import { AddressLookupTableProgram } from "@solana/web3.js";
+import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 
 export const advanceBySlots = async (
   context: ProgramTestContext,
@@ -31,6 +32,7 @@ export const processTransaction = async (
   banksClient: BanksClient,
   payer: PublicKey,
   instructions: TransactionInstruction[],
+  signers: Keypair[] = []
 ) => {
   const latestBlockhash = await banksClient.getLatestBlockhash();
   const messageV0 = new TransactionMessage({
@@ -40,6 +42,7 @@ export const processTransaction = async (
   }).compileToV0Message();
 
   const tx = new VersionedTransaction(messageV0);
+  tx.sign(signers);
   const meta = await banksClient.processTransaction(tx);
   return meta;
 };
@@ -131,6 +134,19 @@ export function getPythOracle(marketIndex: MarketIndex) {
   const shardBuffer = Buffer.alloc(2);
   shardBuffer.writeUint16LE(shardId, 0);
   return PublicKey.findProgramAddressSync([shardBuffer, priceFeedIdBuffer], PYTH_ORACLE_PROGRAM_ID)[0];
+}
+
+export const evmAddressToSolana = (evmAddress: string) => {
+  const bytes32 = `0x000000000000000000000000${evmAddress.replace("0x", "")}`;
+
+  const bytes = new Uint8Array((bytes32.length - 2) / 2);
+  let offset = 2;
+  for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(bytes32.substring(offset, offset + 2), 16);
+      offset += 2;
+  }
+
+  return new PublicKey(bytes);
 }
 
 export async function setupATA(

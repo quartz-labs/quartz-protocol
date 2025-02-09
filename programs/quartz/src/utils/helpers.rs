@@ -52,3 +52,22 @@ pub fn validate_start_collateral_repay_ix(start_collateral_repay: &Instruction) 
 
     Ok(())
 }
+
+// TODO: Unit test this function
+pub fn evm_address_to_solana(ethereum_address: &str) -> Result<Pubkey> {
+    let cleaned_address = ethereum_address.trim_start_matches("0x");
+    check!(
+        cleaned_address.len() == 40,
+        QuartzError::InvalidEvmAddress
+    );
+
+    let mut bytes = [0u8; 32];
+    for i in 0..20 {
+        let pos = i * 2;
+        let byte_str = &cleaned_address[pos..pos + 2];
+        bytes[i + 12] = u8::from_str_radix(byte_str, 16)
+            .map_err(|_| QuartzError::InvalidEvmAddress)?;
+    }
+
+    Ok(Pubkey::new_from_array(bytes))
+}

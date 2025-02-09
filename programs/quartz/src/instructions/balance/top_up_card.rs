@@ -32,9 +32,9 @@ use token_messenger_minter::{
 use message_transmitter::program::MessageTransmitter;
 use crate::{
     check, 
-    config::{QuartzError, DOMAIN_BASE}, 
+    config::{QuartzError, DOMAIN_BASE, PROVIDER_BASE_ADDRESS, QUARTZ_CALLER_BASE_ADDRESS, USDC_MARKET_INDEX}, 
     state::Vault, 
-    utils::get_drift_market
+    utils::{evm_address_to_solana, get_drift_market}
 };
 
 
@@ -63,6 +63,7 @@ pub struct TopUpCard<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    #[account(mut)]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
 
@@ -104,14 +105,29 @@ pub struct TopUpCard<'info> {
 
     // --- CCTP accounts ---
 
-    /// CHECK: TODO: Ensure this is the correct address
+    /// CHECK: This account is safe once the address is correct
+    #[account(
+        constraint = provider_base_address.key().eq(
+            &evm_address_to_solana(PROVIDER_BASE_ADDRESS)?
+        )
+    )]
     pub provider_base_address: UncheckedAccount<'info>,
 
-    /// CHECK: TODO: Ensure this is the correct address
+    /// CHECK: This account is safe once the seeds are correct
+    #[account(
+        constraint = quartz_caller_base_address.key().eq(
+            &evm_address_to_solana(QUARTZ_CALLER_BASE_ADDRESS)?
+        )
+    )]
     pub quartz_caller_base_address: UncheckedAccount<'info>,
 
-    /// CHECK: TODO: Replace with Quartz rent payer
-    pub event_rent_payer: UncheckedAccount<'info>,
+    /// CHECK: This account is safe once the seeds are correct
+    #[account(
+        mut,
+        seeds = [b"bridge_rent_payer"],
+        bump
+    )]
+    pub bridge_rent_payer: UncheckedAccount<'info>,
 
     /// CHECK: This account is passed through to the Circle CPI, which performs the security checks
     pub sender_authority_pda: UncheckedAccount<'info>,
@@ -133,7 +149,6 @@ pub struct TopUpCard<'info> {
     #[account(mut)]
     pub local_token: UncheckedAccount<'info>,
 
-    /// Account to store MessageSent event data in. Any non-PDA uninitialized address.
     #[account(mut)]
     pub message_sent_event_data: Signer<'info>,
 
@@ -157,7 +172,7 @@ pub fn top_up_card_handler<'info>(
     amount_usdc_base_units: u64
 ) -> Result<()> {
     // Validate USDC market index and mint
-    let drift_market = get_drift_market(0)?;
+    let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
     check!(
         &ctx.accounts.usdc_mint.key().eq(&drift_market.mint),
         QuartzError::InvalidMint
@@ -165,12 +180,12 @@ pub fn top_up_card_handler<'info>(
     
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let seeds = &[
+    let vault_seeds = &[
         b"vault",
         owner.as_ref(),
         &[vault_bump]
     ];
-    let signer_seeds = &[&seeds[..]];
+    let signer_seeds_withdraw = &[&vault_seeds[..]];
 
     // Drift Withdraw CPI
     let mut withdraw_cpi_ctx = CpiContext::new_with_signer(
@@ -185,7 +200,7 @@ pub fn top_up_card_handler<'info>(
             user_token_account: ctx.accounts.vault_usdc.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
-        signer_seeds
+        signer_seeds_withdraw
     );
 
     withdraw_cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
@@ -193,11 +208,21 @@ pub fn top_up_card_handler<'info>(
     drift_withdraw(withdraw_cpi_ctx, drift_market.market_index, amount_usdc_base_units, false)?;
 
     // Bridge USDC to Base through Circle CPI
+    let bridge_rent_payer_bump = ctx.bumps.bridge_rent_payer;
+    let bridge_rent_payer_seeds = &[
+        b"bridge_rent_payer".as_ref(),
+        &[bridge_rent_payer_bump]
+    ];
+    let signer_seeds_bridge = &[
+        &bridge_rent_payer_seeds[..],
+        &vault_seeds[..]
+    ];
+
     let bridge_cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_messenger_minter_program.to_account_info(), 
         DepositForBurnContext {
             owner: ctx.accounts.vault.to_account_info(),
-            event_rent_payer: ctx.accounts.event_rent_payer.to_account_info(),
+            event_rent_payer: ctx.accounts.bridge_rent_payer.to_account_info(),
             sender_authority_pda: ctx.accounts.sender_authority_pda.to_account_info(),
             burn_token_account: ctx.accounts.vault_usdc.to_account_info(),
             message_transmitter: ctx.accounts.message_transmitter.to_account_info(),
@@ -212,9 +237,9 @@ pub fn top_up_card_handler<'info>(
             token_program: ctx.accounts.token_program.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
             event_authority: ctx.accounts.event_authority.to_account_info(),
-            program: ctx.accounts.token_messenger_minter_program.to_account_info(),
+            program: ctx.accounts.token_messenger_minter_program.to_account_info()
         }, 
-        signer_seeds
+        signer_seeds_bridge
     );
 
     let bridge_cpi_params = DepositForBurnWithCallerParams {
@@ -234,7 +259,7 @@ pub fn top_up_card_handler<'info>(
             destination: ctx.accounts.owner.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
-        signer_seeds
+        signer_seeds_withdraw
     );
     close_account(cpi_ctx_close)?;
 

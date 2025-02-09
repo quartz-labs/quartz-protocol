@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { DRIFT_PROGRAM_ID, QUARTZ_PROGRAM_ID } from "../config/constants";
+import { DOMAIN_BASE, DRIFT_PROGRAM_ID, MESSAGE_TRANSMITTER_PROGRAM_ID, QUARTZ_PROGRAM_ID, TOKEN_MESSAGE_MINTER_PROGRAM_ID, USDC_MINT } from "../config/constants";
 import { BN, web3 } from "@coral-xyz/anchor";
 
 export const toRemainingAccount = (
@@ -82,4 +82,68 @@ export const getDriftState = () => {
         DRIFT_PROGRAM_ID
     );
     return statePda;
+};
+
+export const getSenderAuthority = () => {
+    const [senderAuthorityPda] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("sender_authority")],
+        TOKEN_MESSAGE_MINTER_PROGRAM_ID
+    );
+    return senderAuthorityPda;
+};
+
+export const getMessageTransmitter = () => {
+    const [messageTransmitter] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("message_transmitter")],
+        MESSAGE_TRANSMITTER_PROGRAM_ID
+    );
+    return messageTransmitter;
+};
+
+export const getTokenMessenger = () => {
+    const [tokenMessenger] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("token_messenger")],
+        TOKEN_MESSAGE_MINTER_PROGRAM_ID
+    );
+    return tokenMessenger;
+};
+
+export const getTokenMinter = () => {
+    const [tokenMinter] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("token_minter")],
+        TOKEN_MESSAGE_MINTER_PROGRAM_ID
+    );
+    return tokenMinter;
+};
+
+export const getLocalToken = () => {
+    const [localToken] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("local_token"), USDC_MINT.toBuffer()],
+        TOKEN_MESSAGE_MINTER_PROGRAM_ID,
+    );
+    return localToken;
+};
+
+export const getRemoteTokenMessenger = () => {
+    const [remoteTokenMessenger] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("remote_token_messenger"), Buffer.from(DOMAIN_BASE.toString())],
+        TOKEN_MESSAGE_MINTER_PROGRAM_ID
+    );
+    return remoteTokenMessenger;
+};
+
+export const getEventAuthority = () => {
+    const [eventAuthority] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("__event_authority")],
+        TOKEN_MESSAGE_MINTER_PROGRAM_ID
+    );
+    return eventAuthority;
+};
+
+export const getBridgeRentPayer = () => {
+    const [bridgeRentPayer] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("bridge_rent_payer")],
+        QUARTZ_PROGRAM_ID
+    );
+    return bridgeRentPayer;
 };

@@ -24,7 +24,16 @@ security_txt! {
 pub mod quartz {
     use super::*;
 
-    // Config
+    // User
+
+    pub fn reclaim_bridge_rent(
+        ctx: Context<ReclaimBridgeRent>,
+        attestation: Vec<u8>
+    ) -> Result<()> {
+        reclaim_bridge_rent_handler(ctx, attestation)
+    }
+
+    // User
 
     pub fn init_user(ctx: Context<InitializeUser>) -> Result<()> {
         init_user_handler(ctx)
@@ -42,7 +51,7 @@ pub mod quartz {
         close_drift_account_handler(ctx)
     }
 
-    // User
+    // Balance
 
     pub fn deposit<'info>(
         ctx: Context<'_, '_, '_, 'info, Deposit<'info>>, 
@@ -70,6 +79,7 @@ pub mod quartz {
     }
 
     // Collateral Repay
+
     pub fn start_collateral_repay<'info>(
         ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
     ) -> Result<()> {
