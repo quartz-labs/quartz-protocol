@@ -116,7 +116,7 @@ pub fn top_up_card_handler<'info>(
     let bridge_cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_messenger_minter_program.to_account_info(), 
         DepositForBurnContext {
-            owner: ctx.accounts.vault.to_account_info(),
+            owner: ctx.accounts.owner.to_account_info(),
             event_rent_payer: ctx.accounts.bridge_rent_payer.to_account_info(),
             sender_authority_pda: ctx.accounts.sender_authority_pda.to_account_info(),
             burn_token_account: ctx.accounts.owner_usdc.to_account_info(),
