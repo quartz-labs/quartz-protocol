@@ -42,4 +42,8 @@ pub enum QuartzError {
     InvalidStartingVaultBalance,
     #[msg("Provided token ledger is not empty")]
     FreshTokenLedgerRequired,
+    #[msg("Invalid vault owner")]
+    InvalidVaultOwner,
+    #[msg("Invalid vault address")]
+    InvalidVaultAddress,
 }

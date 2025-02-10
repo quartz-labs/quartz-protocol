@@ -9,3 +9,6 @@ pub use init_drift_account::*;
 
 mod close_drift_account;
 pub use close_drift_account::*;
+
+pub mod migrate_vault;
+pub use migrate_vault::*;

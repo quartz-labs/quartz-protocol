@@ -1,17 +1,19 @@
 import { BN, Program } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { BanksClient } from "solana-bankrun";
-import { Quartz } from "../../target/types/quartz";
 import { processTransaction } from "./helpers";
 import { WSOL_MINT } from "../config/constants";
 import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction } from "@solana/spl-token";
 import { AccountMeta } from "./interfaces";
+import { IDL as QuartzIDL, Quartz } from "../../target/types/quartz";
+
 
 
 export interface InitUserAccounts {
     vault: PublicKey;
     owner: PublicKey;
     systemProgram: PublicKey;
+    lookupTable: PublicKey;
 }
   
 export const initUser = async (
@@ -20,14 +22,40 @@ export const initUser = async (
     accounts: InitUserAccounts
 ) => {
     const ix = await quartzProgram.methods
-      .initUser()
+      .initUser(new BN(10))
       .accounts(accounts)
       .instruction();
   
     const meta = await processTransaction(banksClient, accounts.owner, [ix]);
     return meta;
 };
-  
+
+export interface InitLegacyUserAccounts {
+    vault: PublicKey;
+    owner: PublicKey;
+    systemProgram: PublicKey;
+}
+
+export interface MigrateVaultAccounts {
+    vault: PublicKey;
+    owner: PublicKey;
+    systemProgram: PublicKey;
+    lookupTable: PublicKey;
+}
+
+export const migrateVault = async (
+    quartzProgram: Program<Quartz>,
+    banksClient: BanksClient,
+    accounts: MigrateVaultAccounts
+) => {
+    const ix = await quartzProgram.methods
+      .migrateVault()
+      .accounts(accounts)
+      .instruction();
+
+    const meta = await processTransaction(banksClient, accounts.owner, [ix]);
+    return meta;
+};
   
 export interface CloseUserAccounts {
     vault: PublicKey;

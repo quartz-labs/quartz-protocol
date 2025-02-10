@@ -26,8 +26,8 @@ pub mod quartz {
 
     // Config
 
-    pub fn init_user(ctx: Context<InitializeUser>) -> Result<()> {
-        init_user_handler(ctx)
+    pub fn init_user(ctx: Context<InitializeUser>, spend_balance_amount: u64) -> Result<()> {
+        init_user_handler(ctx, spend_balance_amount)
     }
 
     pub fn close_user(ctx: Context<CloseUser>) -> Result<()> {
@@ -82,5 +82,9 @@ pub mod quartz {
         withdraw_market_index: u16
     ) -> Result<()> {
         withdraw_collateral_repay_handler(ctx, withdraw_market_index)
+    }
+
+    pub fn migrate_vault(ctx: Context<MigrateVault>) -> Result<()> {
+        migrate_vault_handler(ctx)
     }
 }
