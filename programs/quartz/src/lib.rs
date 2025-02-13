@@ -26,8 +26,8 @@ pub mod quartz {
 
     // Config
 
-    pub fn init_user(ctx: Context<InitializeUser>, spend_balance_amount: u64) -> Result<()> {
-        init_user_handler(ctx, spend_balance_amount)
+    pub fn init_user(ctx: Context<InitializeUser>, spend_balance_amount: u64, slot: u64) -> Result<()> {
+        init_user_handler(ctx, spend_balance_amount, slot)
     }
 
     pub fn close_user(ctx: Context<CloseUser>) -> Result<()> {

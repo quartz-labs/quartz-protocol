@@ -6,13 +6,16 @@
     "test:balance": "RUST_LOG= jest --runInBand tests/quartz/balance.test.ts",
     "test:collateralRepay": "RUST_LOG= jest --runInBand tests/quartz/collateralRepay.test.ts",
     "test:migrateVault": "RUST_LOG= jest --runInBand tests/quartz/migrateVault.test.ts",
-    "test:repay": "yarn test:collateralRepay"
+    "test:repay": "yarn test:collateralRepay",
+    "test:local": "ANCHOR_PROVIDER_URL=https://muddy-hardworking-leaf.solana-devnet.quiknode.pro/86bfaacb23cb3ebcdb392034bee363ff41c056da ANCHOR_WALLET=~/.config/solana/id.json jest tests/quartz/localVal.test.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.29.0",
     "@jup-ag/api": "^6.0.32",
+    "@quartz-labs/sdk": "^0.5.0",
     "@solana/spl-token": "^0.4.8",
     "anchor-bankrun": "^0.3.0",
+    "anchor-litesvm": "^0.1.1",
     "dotenv": "^16.4.5",
     "solana-bankrun": "^0.3.0",
     "spl-token-bankrun": "0.2.6",

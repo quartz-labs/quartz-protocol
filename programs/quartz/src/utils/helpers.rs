@@ -3,6 +3,7 @@ use solana_program::instruction::Instruction;
 use crate::{
     check, config::{QuartzError, DRIFT_MARKETS, U16_SIZE, U64_SIZE, U8_SIZE}, state::DriftMarket
 };
+use crate::config::DRIFT_ID;
 
 pub fn get_jup_exact_out_route_platform_fees(instruction: &Instruction) -> Result<u8> {
     let platform_fee_index_start = instruction.data.len() - U8_SIZE;
@@ -72,4 +73,76 @@ pub fn validate_start_collateral_repay_ix(start_collateral_repay: &Instruction) 
     );
 
     Ok(())
+}
+
+pub fn get_drift_user_public_key(vault_pda: &Pubkey) -> Pubkey {
+    let seeds = [
+        b"user",
+        vault_pda.as_ref(),
+        &0u16.to_le_bytes(),
+    ];
+    
+    let (user_pda, _bump) = Pubkey::find_program_address(
+        &seeds,
+        &DRIFT_ID
+    );
+    
+    user_pda
+}
+
+pub fn get_drift_user_stats_public_key(vault_pda: &Pubkey) -> Pubkey {
+    let seeds = [
+        b"user_stats",
+        vault_pda.as_ref(),
+    ];
+    
+    let (user_stats_pda, _bump) = Pubkey::find_program_address(
+        &seeds,
+        &DRIFT_ID
+    );
+    
+    user_stats_pda
+}
+
+pub fn get_vault_public_key(user: &Pubkey) -> Pubkey {
+    let seeds = [
+        b"vault",
+        user.as_ref(),
+    ];
+    
+    let (vault_pda, _bump) = Pubkey::find_program_address(
+        &seeds,
+        &crate::id()
+    );
+    
+    vault_pda
+}
+
+pub fn get_vault_spl_public_key(user: &Pubkey, mint: &Pubkey) -> Pubkey {
+    let vault_pda = get_vault_public_key(user);
+    let seeds = [
+        vault_pda.as_ref(),
+        mint.as_ref(),
+    ];
+    
+    let (vault_spl_pda, _bump) = Pubkey::find_program_address(
+        &seeds,
+        &crate::id()
+    );
+    
+    vault_spl_pda
+}
+
+pub fn get_ata_public_key(user: &Pubkey, mint: &Pubkey, token_program_id: &Pubkey) -> Pubkey {
+    let seeds = [
+        user.as_ref(),
+        mint.as_ref(),
+    ];
+
+    let (ata_pda, _bump) = Pubkey::find_program_address(
+        &seeds,
+        &token_program_id
+    );
+
+    ata_pda
 }

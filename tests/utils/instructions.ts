@@ -6,6 +6,7 @@ import { WSOL_MINT } from "../config/constants";
 import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction } from "@solana/spl-token";
 import { AccountMeta } from "./interfaces";
 import { IDL as QuartzIDL, Quartz } from "../../target/types/quartz";
+import { TOKENS } from "./tokens";
 
 
 
@@ -14,16 +15,23 @@ export interface InitUserAccounts {
     owner: PublicKey;
     systemProgram: PublicKey;
     lookupTable: PublicKey;
+    addressLookupTableProgram: PublicKey;
 }
   
 export const initUser = async (
     quartzProgram: Program<Quartz>,
     banksClient: BanksClient,
-    accounts: InitUserAccounts
+    accounts: InitUserAccounts,
+    slot: number
 ) => {
     const ix = await quartzProgram.methods
-      .initUser(new BN(10))
+      .initUser(new BN(10), new BN(slot))
       .accounts(accounts)
+      .remainingAccounts(Object.values(TOKENS).map(token => ({
+        pubkey: token.mint,
+        isWritable: false,
+        isSigner: false,
+       })))
       .instruction();
   
     const meta = await processTransaction(banksClient, accounts.owner, [ix]);

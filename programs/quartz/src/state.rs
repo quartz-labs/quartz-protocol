@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::config::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U8_SIZE, U64_SIZE};
+use solana_program::pubkey::Pubkey;
 
 pub struct DriftMarket {
     pub market_index: u16,

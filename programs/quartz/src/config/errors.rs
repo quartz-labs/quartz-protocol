@@ -46,4 +46,16 @@ pub enum QuartzError {
     InvalidVaultOwner,
     #[msg("Invalid vault address")]
     InvalidVaultAddress,
+    #[msg("Lookup table already initialized")]
+    LookupTableAlreadyInitialized,
+    #[msg("Missing token mint")]
+    MissingTokenMint,
+    #[msg("Invalid token program id")]
+    InvalidTokenProgramId,
+    #[msg("Invalid lookup table")]
+    InvalidLookupTable,
+    #[msg("Invalid lookup table content")]
+    InvalidLookupTableContent,
+    #[msg("Invalid lookup table authority")]
+    InvalidLookupTableAuthority,
 }

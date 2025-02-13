@@ -6,3 +6,6 @@ pub use errors::*;
 
 mod drift_markets;
 pub use drift_markets::*;
+
+mod programs;
+pub use programs::*;

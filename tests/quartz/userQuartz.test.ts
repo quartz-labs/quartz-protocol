@@ -7,7 +7,7 @@ import { IDL as QuartzIDL, Quartz } from "../../target/types/quartz";
 import { getVaultPda } from "../utils/accounts";
 import { closeUser, initUser } from "../utils/instructions";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
-import { QUARTZ_PROGRAM_ID } from "../config/constants";
+import { ADDRESS_LOOKUP_TABLE_PROGRAM_ID, QUARTZ_PROGRAM_ID } from "../config/constants";
 
 
 const TIMEOUT = 10_000;
@@ -49,6 +49,7 @@ describe("init_user", () => {
       vault: vaultPda,
       owner: user.publicKey,
       systemProgram: SystemProgram.programId,
+      lookupTable: lookupTableAddress,
     });
 
     expect(meta.logMessages[1]).toBe("Program log: Instruction: InitUser");
