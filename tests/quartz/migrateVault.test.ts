@@ -157,27 +157,27 @@ describe("migrate_vault", () => {
     }, TIMEOUT);
 
     //programs/address-lookup-table
-    // test("Should Migrate Vault to new vault", async () => {
+    test("Should Migrate Vault to new vault", async () => {
 
-    //     //I want to test that the old vault does not have the new vault data eg: spendBalanceAmount
-    //     const oldVaultAccount = await quartzProgram.account.vault.fetch(OLD_VAULT);
-    //     expect(oldVaultAccount.lookupTable.toBase58()).toBe("11111111111111111111111111111111");
+        //I want to test that the old vault does not have the new vault data eg: spendBalanceAmount
+        const oldVaultAccount = await quartzProgram.account.vault.fetch(OLD_VAULT);
+        expect(oldVaultAccount.lookupTable.toBase58()).toBe("11111111111111111111111111111111");
 
-    //     const migrateMeta = await migrateVault(quartzProgram, banksClient, {
-    //         vault: OLD_VAULT,
-    //         owner: OLD_VAULT_OWNER,
-    //         lookupTable: LOOKUP_TABLE,
-    //         systemProgram: SystemProgram.programId
-    //     });
+        const migrateMeta = await migrateVault(quartzProgram, banksClient, {
+            vault: OLD_VAULT,
+            owner: OLD_VAULT_OWNER,
+            lookupTable: LOOKUP_TABLE,
+            systemProgram: SystemProgram.programId
+        });
 
-    //     expect(migrateMeta.logMessages[1]).toBe("Program log: Instruction: MigrateVault");
-    //     expect(migrateMeta.logMessages[3]).toBe("Program 11111111111111111111111111111111 success");
+        expect(migrateMeta.logMessages[1]).toBe("Program log: Instruction: MigrateVault");
+        expect(migrateMeta.logMessages[3]).toBe("Program 11111111111111111111111111111111 success");
 
-    //     const updatedVaultAccount = await quartzProgram.account.vault.fetch(OLD_VAULT);
+        const updatedVaultAccount = await quartzProgram.account.vault.fetch(OLD_VAULT);
 
-    //     expect(Number(updatedVaultAccount.spendBalanceAmount)).toBe(0);
-    //     expect(updatedVaultAccount.owner.toBase58()).toBe(OLD_VAULT_OWNER.toBase58());
-    //     expect(updatedVaultAccount.lookupTable.toBase58()).toBe(LOOKUP_TABLE.toBase58());
-    // }, TIMEOUT);
+        expect(Number(updatedVaultAccount.spendBalanceAmount)).toBe(0);
+        expect(updatedVaultAccount.owner.toBase58()).toBe(OLD_VAULT_OWNER.toBase58());
+        expect(updatedVaultAccount.lookupTable.toBase58()).toBe(LOOKUP_TABLE.toBase58());
+    }, TIMEOUT);
 });
 
