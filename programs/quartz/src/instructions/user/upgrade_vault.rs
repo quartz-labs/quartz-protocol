@@ -5,7 +5,6 @@ use solana_program::{program::invoke_signed, system_instruction};
 
 #[derive(Accounts)]
 pub struct UpgradeVault<'info> {
-    /// CHECK: Account is checked by handler
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
@@ -16,7 +15,6 @@ pub struct UpgradeVault<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: This account is safe once the seeds are correct
     #[account(
         mut,
         seeds = [b"init_rent_payer"],

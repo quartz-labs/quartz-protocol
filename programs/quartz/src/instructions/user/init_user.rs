@@ -1,6 +1,6 @@
 use crate::{config::{INIT_ACCOUNT_RENT_FEE, MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR, MARGINFI_GROUP_1, MARGINFI_PROGRAM_ID}, state::Vault};
 use anchor_lang::prelude::*;
-use solana_program::program::invoke;
+use solana_program::program::{invoke, invoke_signed};
 use drift::{
     program::Drift,
     cpi::{
@@ -27,7 +27,6 @@ pub struct InitUser<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: This account is safe once the seeds are correct
     #[account(
         mut,
         seeds = [b"init_rent_payer"],
@@ -54,12 +53,12 @@ pub struct InitUser<'info> {
     pub drift_program: Program<'info, Drift>,
 
     #[account(
-        constraint = marginfi_program.key() == MARGINFI_PROGRAM_ID
+        constraint = marginfi_program.key().eq(&MARGINFI_PROGRAM_ID)
     )]
     pub marginfi_program: UncheckedAccount<'info>,
 
     #[account(
-        constraint = marginfi_group.key() == MARGINFI_GROUP_1
+        constraint = marginfi_group.key().eq(&MARGINFI_GROUP_1)
     )]
     pub marginfi_group: UncheckedAccount<'info>,
 
@@ -116,7 +115,7 @@ pub fn init_user_handler(
     init_drift_accounts(&ctx, signer_seeds)?;
 
     if requires_marginfi_account {
-        init_marginfi_account(&ctx)?;
+        init_marginfi_account(&ctx, signer_seeds)?;
     }
 
     Ok(())
@@ -159,7 +158,8 @@ fn init_drift_accounts(
 }
 
 fn init_marginfi_account(
-    ctx: &Context<InitUser>
+    ctx: &Context<InitUser>,
+    signer_seeds: &[&[&[u8]]]
 ) -> Result<()> {
     let ix = solana_program::instruction::Instruction {
         program_id: ctx.accounts.marginfi_program.key(),
@@ -172,8 +172,8 @@ fn init_marginfi_account(
         ],
         data: MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR.to_vec(),
     };
-    
-    invoke(
+
+    invoke_signed(
         &ix,
         &[
             ctx.accounts.marginfi_group.to_account_info(),
@@ -182,6 +182,7 @@ fn init_marginfi_account(
             ctx.accounts.init_rent_payer.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
         ],
+        signer_seeds
     )?;
 
     Ok(())

@@ -19,6 +19,7 @@ pub const PROVIDER_BASE_ADDRESS: &str = "0x55a2eeB9028ee51Ef91352Fa9f84A9450C5Af
 pub const QUARTZ_CALLER_BASE_ADDRESS: &str = "0x28A0105A0cf8C0485a4956ba14b5274e9ED229DE";
 pub const RENT_RECLAIMER: Pubkey = pubkey!("AhLjdeYqv4Ytw5sukK4z3x37ZGaSJ44pRqdcxqHP4ChS");
 
+pub const DRIFT_DELETE_USER_DISCRIMINATOR: &[u8] = &[186, 85, 17, 249, 219, 231, 98, 251];
 pub const MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR: &[u8] = &[74, 115, 99, 93, 197, 69, 103, 7];
 pub const MARGINFI_PROGRAM_ID: Pubkey = pubkey!("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
 pub const MARGINFI_GROUP_1: Pubkey = pubkey!("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
