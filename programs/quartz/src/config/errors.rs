@@ -44,4 +44,20 @@ pub enum QuartzError {
     FreshTokenLedgerRequired,
     #[msg("Provided EVM address does not match expected format")]
     InvalidEvmAddress,
+    #[msg("Invalid vault owner")]
+    InvalidVaultOwner,
+    #[msg("Invalid vault address")]
+    InvalidVaultAddress,
+    #[msg("Lookup table already initialized")]
+    LookupTableAlreadyInitialized,
+    #[msg("Missing token mint")]
+    MissingTokenMint,
+    #[msg("Invalid token program id")]
+    InvalidTokenProgramId,
+    #[msg("Invalid lookup table")]
+    InvalidLookupTable,
+    #[msg("Invalid lookup table content")]
+    InvalidLookupTableContent,
+    #[msg("Invalid lookup table authority")]
+    InvalidLookupTableAuthority,
 }

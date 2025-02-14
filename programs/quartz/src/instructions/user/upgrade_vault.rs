@@ -2,8 +2,6 @@ use crate::config::{QuartzError, ANCHOR_DISCRIMINATOR, PUBKEY_SIZE};
 use crate::state::Vault;
 use crate::utils::validate_user_lookup_table;
 use anchor_lang::prelude::*;
-
-use solana_program::address_lookup_table_account::AddressLookupTableAccount;
 use solana_program::{program::invoke_signed, system_instruction};
 
 #[derive(Accounts)]
@@ -19,12 +17,26 @@ pub struct UpgradeVault<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    pub lookup_table: Box<Account<'info, AddressLookupTableAccount>>,
+    // TODO: This account is checked by validate_user_lookup_table
+    pub lookup_table: UncheckedAccount<'info>,
+
+    /// CHECK: This account is safe once the seeds are correct
+    #[account(
+        mut,
+        seeds = [b"init_rent_payer"],
+        bump
+    )]
+    pub init_rent_payer: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
 
-pub fn upgrade_vault_handler(ctx: Context<UpgradeVault>) -> Result<()> {
+pub fn upgrade_vault_handler(
+    ctx: Context<UpgradeVault>,
+    spend_limit_per_transaction: u64,
+    spend_limit_per_timeframe: u64,
+    extend_spend_limit_per_timeframe_reset_slot_amount: u64
+) -> Result<()> {
     // Get current Vault data
     let existing_vault = &ctx.accounts.vault;
     let (vault_owner, vault_bump) = {
@@ -47,15 +59,24 @@ pub fn upgrade_vault_handler(ctx: Context<UpgradeVault>) -> Result<()> {
         ctx.accounts.owner.key(),
         QuartzError::InvalidVaultOwner
     );
-    validate_user_lookup_table(lookup_table)?;
+
+    validate_user_lookup_table(
+        &ctx.accounts.lookup_table, 
+        &ctx.accounts.owner.key(),
+        &ctx.remaining_accounts
+    )?;
 
     // Get new vault data and required size
+    let current_slot = Clock::get()?.slot;
     let new_vault = Vault {
         owner: ctx.accounts.owner.key(),
         bump: vault_bump,
         lookup_table: ctx.accounts.lookup_table.key(),
-        spend_balance_amount: 0,
-        // TODO: Add in data for time block for spend_balance_amount
+        spend_limit_per_transaction,
+        spend_limit_per_timeframe,
+        remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
+        next_spend_limit_per_timeframe_reset_slot: current_slot + extend_spend_limit_per_timeframe_reset_slot_amount,
+        extend_spend_limit_per_timeframe_reset_slot_amount
     };
     let new_vault_vec = new_vault.try_to_vec().unwrap();
 
@@ -66,21 +87,21 @@ pub fn upgrade_vault_handler(ctx: Context<UpgradeVault>) -> Result<()> {
         .ok_or(QuartzError::MathOverflow)?;
 
     // Extend the vault size
+    let owner_key = ctx.accounts.owner.key();
     let seeds = &[
-        b"vault",
-        ctx.accounts.owner.as_ref(),
+        b"init_rent_payer",
         &[vault_bump]
     ];
     let signer_seeds = &[&seeds[..]];
 
     invoke_signed(
         &system_instruction::transfer(
-            ctx.accounts.owner.key, 
+            ctx.accounts.init_rent_payer.key, 
             existing_vault.key, 
             lamports_diff
         ),
         &[
-            ctx.accounts.owner.to_account_info(),
+            ctx.accounts.init_rent_payer.to_account_info(),
             existing_vault.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
         ],

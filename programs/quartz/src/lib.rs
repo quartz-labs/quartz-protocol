@@ -24,31 +24,52 @@ security_txt! {
 pub mod quartz {
     use super::*;
 
-    // User
+    // Admin
 
     pub fn reclaim_bridge_rent(
         ctx: Context<ReclaimBridgeRent>,
         attestation: Vec<u8>
     ) -> Result<()> {
-        reclaim_bridge_rent_handler(ctx, attestation)
+        reclaim_bridge_rent_handler(
+            ctx, 
+            attestation
+        )
     }
 
     // User
 
-    pub fn init_user(ctx: Context<InitializeUser>) -> Result<()> {
-        init_user_handler(ctx)
+    pub fn init_user(
+        ctx: Context<InitUser>, 
+        requires_marginfi_account: bool,
+        spend_limit_per_transaction: u64,
+        spend_limit_per_timeframe: u64,
+        extend_spend_limit_per_timeframe_reset_slot_amount: u64
+    ) -> Result<()> {
+        init_user_handler(
+            ctx, 
+            requires_marginfi_account, 
+            spend_limit_per_transaction, 
+            spend_limit_per_timeframe, 
+            extend_spend_limit_per_timeframe_reset_slot_amount
+        )
     }
 
     pub fn close_user(ctx: Context<CloseUser>) -> Result<()> {
         close_user_handler(ctx)
     }
 
-    pub fn init_drift_account(ctx: Context<InitDriftAccount>) -> Result<()> {
-        init_drift_account_handler(ctx)
-    }
-
-    pub fn close_drift_account(ctx: Context<CloseDriftAccount>) -> Result<()> {
-        close_drift_account_handler(ctx)
+    pub fn upgrade_vault(
+        ctx: Context<UpgradeVault>,
+        spend_limit_per_transaction: u64,
+        spend_limit_per_timeframe: u64,
+        extend_spend_limit_per_timeframe_reset_slot_amount: u64
+    ) -> Result<()> {
+        upgrade_vault_handler(
+            ctx, 
+            spend_limit_per_transaction, 
+            spend_limit_per_timeframe, 
+            extend_spend_limit_per_timeframe_reset_slot_amount
+        )
     }
 
     // Balance
@@ -59,7 +80,12 @@ pub mod quartz {
         drift_market_index: u16,
         reduce_only: bool
     ) -> Result<()> {
-        deposit_handler(ctx, amount_base_units, drift_market_index, reduce_only)
+        deposit_handler(
+            ctx, 
+            amount_base_units, 
+            drift_market_index, 
+            reduce_only
+        )
     }
 
     pub fn withdraw<'info>(
@@ -68,14 +94,22 @@ pub mod quartz {
         drift_market_index: u16,
         reduce_only: bool
     ) -> Result<()> {
-        withdraw_handler(ctx, amount_base_units, drift_market_index, reduce_only)
+        withdraw_handler(
+            ctx, 
+            amount_base_units, 
+            drift_market_index, 
+            reduce_only
+        )
     }
 
     pub fn top_up_card<'info>(
         ctx: Context<'_, '_, '_, 'info, TopUpCard<'info>>,
         amount_usdc_base_units: u64,
     ) -> Result<()> {
-        top_up_card_handler(ctx, amount_usdc_base_units)
+        top_up_card_handler(
+            ctx, 
+            amount_usdc_base_units
+        )
     }
 
     // Collateral Repay
@@ -90,13 +124,19 @@ pub mod quartz {
         ctx: Context<'_, '_, 'info, 'info, DepositCollateralRepay<'info>>,
         deposit_market_index: u16,
     ) -> Result<()> {
-        deposit_collateral_repay_handler(ctx, deposit_market_index)
+        deposit_collateral_repay_handler(
+            ctx, 
+            deposit_market_index
+        )
     }
 
     pub fn withdraw_collateral_repay<'info>(
         ctx: Context<'_, '_, 'info, 'info, WithdrawCollateralRepay<'info>>,
         withdraw_market_index: u16
     ) -> Result<()> {
-        withdraw_collateral_repay_handler(ctx, withdraw_market_index)
+        withdraw_collateral_repay_handler(
+            ctx, 
+            withdraw_market_index
+        )
     }
 }
