@@ -1,7 +1,6 @@
-use crate::{config::INIT_ACCOUNT_RENT_FEE, state::Vault};
-use crate::utils::validate_user_lookup_table;
+use crate::{config::{INIT_ACCOUNT_RENT_FEE, MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR, MARGINFI_GROUP_1, MARGINFI_PROGRAM_ID}, state::Vault};
 use anchor_lang::prelude::*;
-use solana_program::program::invoke_signed;
+use solana_program::program::invoke;
 use drift::{
     program::Drift,
     cpi::{
@@ -27,9 +26,6 @@ pub struct InitUser<'info> {
 
     #[account(mut)]
     pub owner: Signer<'info>,
-
-    // CHECK: This account is checked by validate_user_lookup_table
-    pub lookup_table: UncheckedAccount<'info>,
 
     /// CHECK: This account is safe once the seeds are correct
     #[account(
@@ -57,6 +53,18 @@ pub struct InitUser<'info> {
 
     pub drift_program: Program<'info, Drift>,
 
+    #[account(
+        constraint = marginfi_program.key() == MARGINFI_PROGRAM_ID
+    )]
+    pub marginfi_program: UncheckedAccount<'info>,
+
+    #[account(
+        constraint = marginfi_group.key() == MARGINFI_GROUP_1
+    )]
+    pub marginfi_group: UncheckedAccount<'info>,
+
+    pub marginfi_account: Signer<'info>,
+
     pub rent: Sysvar<'info, Rent>,
 
     pub system_program: Program<'info, System>,
@@ -69,41 +77,23 @@ pub fn init_user_handler(
     spend_limit_per_timeframe: u64,
     extend_spend_limit_per_timeframe_reset_slot_amount: u64
 ) -> Result<()> {
-    let vault_bump = ctx.accounts.vault.bump;
-    let owner = ctx.accounts.owner.key();
-    let seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
-    let signer_seeds = &[&seeds[..]];
-
-    // Pay init_rent_payer the init fee (minus address lookup table rent, built client-side)
-    let address_lookup_table_rent = 0; // TODO - calcualte required rent for table
-    invoke_signed(
+    // Pay init_rent_payer the init fee
+    invoke(
         &system_instruction::transfer(
             ctx.accounts.owner.key, 
             ctx.accounts.init_rent_payer.key, 
-            INIT_ACCOUNT_RENT_FEE - address_lookup_table_rent
+            INIT_ACCOUNT_RENT_FEE
         ),
         &[
             ctx.accounts.owner.to_account_info(),
             ctx.accounts.init_rent_payer.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
         ],
-        signer_seeds,
     )?;
 
     // Init vault
     ctx.accounts.vault.owner = ctx.accounts.owner.key();
     ctx.accounts.vault.bump = ctx.bumps.vault;
-
-    validate_user_lookup_table(
-        &ctx.accounts.lookup_table,
-        &ctx.accounts.owner.key(),
-        &ctx.remaining_accounts
-    )?;
-    ctx.accounts.vault.lookup_table = ctx.accounts.lookup_table.key();
 
     ctx.accounts.vault.spend_limit_per_transaction = spend_limit_per_transaction;
     ctx.accounts.vault.spend_limit_per_timeframe = spend_limit_per_timeframe;
@@ -114,7 +104,17 @@ pub fn init_user_handler(
     ctx.accounts.vault.next_spend_limit_per_timeframe_reset_slot = current_slot + extend_spend_limit_per_timeframe_reset_slot_amount;
 
     // Init integrations
+    let vault_bump = ctx.accounts.vault.bump;
+    let owner = ctx.accounts.owner.key();
+    let seeds = &[
+        b"vault",
+        owner.as_ref(),
+        &[vault_bump]
+    ];
+    let signer_seeds = &[&seeds[..]];
+
     init_drift_accounts(&ctx, signer_seeds)?;
+
     if requires_marginfi_account {
         init_marginfi_account(&ctx)?;
     }
@@ -161,7 +161,28 @@ fn init_drift_accounts(
 fn init_marginfi_account(
     ctx: &Context<InitUser>
 ) -> Result<()> {
-    // TODO: Create marginfi account, paying with init_rent_payer
+    let ix = solana_program::instruction::Instruction {
+        program_id: ctx.accounts.marginfi_program.key(),
+        accounts: vec![
+            AccountMeta::new_readonly(ctx.accounts.marginfi_group.key(), false),
+            AccountMeta::new(ctx.accounts.marginfi_account.key(), true),
+            AccountMeta::new(ctx.accounts.owner.key(), true),
+            AccountMeta::new(ctx.accounts.init_rent_payer.key(), true),
+            AccountMeta::new_readonly(ctx.accounts.system_program.key(), false),
+        ],
+        data: MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR.to_vec(),
+    };
+    
+    invoke(
+        &ix,
+        &[
+            ctx.accounts.marginfi_group.to_account_info(),
+            ctx.accounts.marginfi_account.to_account_info(),
+            ctx.accounts.owner.to_account_info(),
+            ctx.accounts.init_rent_payer.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+        ],
+    )?;
 
     Ok(())
 }

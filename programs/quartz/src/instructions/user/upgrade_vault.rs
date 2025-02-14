@@ -1,6 +1,5 @@
 use crate::config::{QuartzError, ANCHOR_DISCRIMINATOR, PUBKEY_SIZE};
 use crate::state::Vault;
-use crate::utils::validate_user_lookup_table;
 use anchor_lang::prelude::*;
 use solana_program::{program::invoke_signed, system_instruction};
 
@@ -16,9 +15,6 @@ pub struct UpgradeVault<'info> {
 
     #[account(mut)]
     pub owner: Signer<'info>,
-
-    // TODO: This account is checked by validate_user_lookup_table
-    pub lookup_table: UncheckedAccount<'info>,
 
     /// CHECK: This account is safe once the seeds are correct
     #[account(
@@ -60,18 +56,11 @@ pub fn upgrade_vault_handler(
         QuartzError::InvalidVaultOwner
     );
 
-    validate_user_lookup_table(
-        &ctx.accounts.lookup_table, 
-        &ctx.accounts.owner.key(),
-        &ctx.remaining_accounts
-    )?;
-
     // Get new vault data and required size
     let current_slot = Clock::get()?.slot;
     let new_vault = Vault {
         owner: ctx.accounts.owner.key(),
         bump: vault_bump,
-        lookup_table: ctx.accounts.lookup_table.key(),
         spend_limit_per_transaction,
         spend_limit_per_timeframe,
         remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
@@ -87,10 +76,10 @@ pub fn upgrade_vault_handler(
         .ok_or(QuartzError::MathOverflow)?;
 
     // Extend the vault size
-    let owner_key = ctx.accounts.owner.key();
+    let init_rent_payer_bump = ctx.bumps.init_rent_payer;
     let seeds = &[
-        b"init_rent_payer",
-        &[vault_bump]
+        b"init_rent_payer".as_ref(),
+        &[init_rent_payer_bump]
     ];
     let signer_seeds = &[&seeds[..]];
 

@@ -5,6 +5,3 @@ mod math;
 pub use math::*;
 
 mod macros;
-
-mod pdas;
-pub use pdas::*;

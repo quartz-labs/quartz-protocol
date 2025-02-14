@@ -13,7 +13,6 @@ pub struct DriftMarket {
 pub struct Vault {
     pub owner: Pubkey,
     pub bump: u8,
-    pub lookup_table: Pubkey,
     
     pub spend_limit_per_transaction: u64,
     pub spend_limit_per_timeframe: u64,
@@ -28,7 +27,7 @@ pub struct Vault {
 
 impl Space for Vault {
     const INIT_SPACE: usize = ANCHOR_DISCRIMINATOR 
-        + PUBKEY_SIZE + U8_SIZE + PUBKEY_SIZE 
+        + PUBKEY_SIZE + U8_SIZE 
         + U64_SIZE + U64_SIZE  + U64_SIZE 
         + U64_SIZE 
         + U64_SIZE;
