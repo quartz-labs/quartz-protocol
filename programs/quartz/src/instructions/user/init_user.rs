@@ -1,5 +1,5 @@
-use crate::{config::{INIT_ACCOUNT_RENT_FEE, MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR, MARGINFI_GROUP_1, MARGINFI_PROGRAM_ID}, state::Vault};
-use anchor_lang::prelude::*;
+use crate::{check, config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE, MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR, MARGINFI_GROUP_1, MARGINFI_PROGRAM_ID}, state::Vault};
+use anchor_lang::{prelude::*, system_program::{create_account, CreateAccount}, Discriminator};
 use solana_program::program::{invoke, invoke_signed};
 use drift::{
     program::Drift,
@@ -15,18 +15,18 @@ use solana_program::system_instruction;
 
 #[derive(Accounts)]
 pub struct InitUser<'info> {
+    /// CHECK: Safe once address is correct
     #[account(
-        init,
+        mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump,
-        payer = init_rent_payer,
-        space = Vault::INIT_SPACE
     )]
-    pub vault: Account<'info, Vault>,
+    pub vault: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    /// CHECK: Safe once address is correct
     #[account(
         mut,
         seeds = [b"init_rent_payer"],
@@ -52,17 +52,20 @@ pub struct InitUser<'info> {
 
     pub drift_program: Program<'info, Drift>,
 
-    #[account(
-        constraint = marginfi_program.key().eq(&MARGINFI_PROGRAM_ID)
-    )]
-    pub marginfi_program: UncheckedAccount<'info>,
-
+    /// CHECK: Safe once address is correct
     #[account(
         constraint = marginfi_group.key().eq(&MARGINFI_GROUP_1)
     )]
     pub marginfi_group: UncheckedAccount<'info>,
 
+    #[account(mut)]
     pub marginfi_account: Signer<'info>,
+
+    /// CHECK: Safe once address is correct
+    #[account(
+        constraint = marginfi_program.key().eq(&MARGINFI_PROGRAM_ID)
+    )]
+    pub marginfi_program: UncheckedAccount<'info>,
 
     pub rent: Sysvar<'info, Rent>,
 
@@ -76,6 +79,34 @@ pub fn init_user_handler(
     spend_limit_per_timeframe: u64,
     extend_spend_limit_per_timeframe_reset_slot_amount: u64
 ) -> Result<()> {
+    let vault_bump = ctx.bumps.vault;
+    let owner = ctx.accounts.owner.key();
+    let seeds_vault = &[
+        b"vault",
+        owner.as_ref(),
+        &[vault_bump]
+    ];
+
+    let init_rent_payer_bump = ctx.bumps.init_rent_payer;
+    let init_rent_payer_seeds = &[
+        b"init_rent_payer".as_ref(),
+        &[init_rent_payer_bump]
+    ];
+
+    let init_rent_payer_signer_seeds = &[
+        &init_rent_payer_seeds[..]
+    ];
+    let both_signer_seeds = &[
+        &init_rent_payer_seeds[..],
+        &seeds_vault[..]
+    ];
+
+    // Check vault is not already initialized
+    check!(
+        ctx.accounts.vault.data_is_empty(),
+        QuartzError::VaultAlreadyInitialized
+    );
+
     // Pay init_rent_payer the init fee
     invoke(
         &system_instruction::transfer(
@@ -90,40 +121,70 @@ pub fn init_user_handler(
         ],
     )?;
 
-    // Init vault
-    ctx.accounts.vault.owner = ctx.accounts.owner.key();
-    ctx.accounts.vault.bump = ctx.bumps.vault;
+    init_vault(
+        &ctx, 
+        both_signer_seeds, 
+        spend_limit_per_transaction, 
+        spend_limit_per_timeframe, 
+        extend_spend_limit_per_timeframe_reset_slot_amount
+    )?;
 
-    ctx.accounts.vault.spend_limit_per_transaction = spend_limit_per_transaction;
-    ctx.accounts.vault.spend_limit_per_timeframe = spend_limit_per_timeframe;
-    ctx.accounts.vault.remaining_spend_limit_per_timeframe = spend_limit_per_timeframe;
-    ctx.accounts.vault.extend_spend_limit_per_timeframe_reset_slot_amount = extend_spend_limit_per_timeframe_reset_slot_amount;
-
-    let current_slot = Clock::get()?.slot;
-    ctx.accounts.vault.next_spend_limit_per_timeframe_reset_slot = current_slot + extend_spend_limit_per_timeframe_reset_slot_amount;
-
-    // Init integrations
-    let vault_bump = ctx.accounts.vault.bump;
-    let owner = ctx.accounts.owner.key();
-    let seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
-    let signer_seeds = &[&seeds[..]];
-
-    init_drift_accounts(&ctx, signer_seeds)?;
+    init_drift_accounts(&ctx, both_signer_seeds)?;
 
     if requires_marginfi_account {
-        init_marginfi_account(&ctx, signer_seeds)?;
+        init_marginfi_account(&ctx, init_rent_payer_signer_seeds)?;
     }
+
+    Ok(())
+}
+
+fn init_vault(
+    ctx: &Context<InitUser>,
+    both_signer_seeds: &[&[&[u8]]],
+    spend_limit_per_transaction: u64,
+    spend_limit_per_timeframe: u64,
+    extend_spend_limit_per_timeframe_reset_slot_amount: u64
+) -> Result<()> {
+    // Init vault space
+    let rent = Rent::get()?;
+    let vault_rent_required = rent.minimum_balance(Vault::INIT_SPACE);
+    create_account(
+        CpiContext::new_with_signer(
+            ctx.accounts.system_program.to_account_info(),
+            CreateAccount {
+                from: ctx.accounts.init_rent_payer.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+            },
+            both_signer_seeds
+        ),
+        vault_rent_required,
+        Vault::INIT_SPACE as u64,
+        &crate::ID
+    )?;
+
+    // Init vault data
+    let current_slot = Clock::get()?.slot;
+    let vault_data = Vault {
+        owner: ctx.accounts.owner.key(),
+        bump: ctx.bumps.vault,
+        spend_limit_per_transaction,
+        spend_limit_per_timeframe,
+        remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
+        next_spend_limit_per_timeframe_reset_slot: current_slot + extend_spend_limit_per_timeframe_reset_slot_amount,
+        extend_spend_limit_per_timeframe_reset_slot_amount
+    };
+    let vault_data_vec = vault_data.try_to_vec()?;
+
+    let mut new_account_data = ctx.accounts.vault.try_borrow_mut_data()?;
+    new_account_data[..ANCHOR_DISCRIMINATOR].copy_from_slice(&Vault::DISCRIMINATOR);
+    new_account_data[ANCHOR_DISCRIMINATOR..].copy_from_slice(&vault_data_vec[..]);
 
     Ok(())
 }
 
 fn init_drift_accounts(
     ctx: &Context<InitUser>,
-    signer_seeds: &[&[&[u8]]]
+    both_signer_seeds: &[&[&[u8]]]
 ) -> Result<()> {
     let create_user_stats_cpi_context = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
@@ -135,7 +196,7 @@ fn init_drift_accounts(
             rent: ctx.accounts.rent.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         },
-        signer_seeds
+        both_signer_seeds
     );
     initialize_user_stats_drift(create_user_stats_cpi_context)?;
     
@@ -150,7 +211,7 @@ fn init_drift_accounts(
             rent: ctx.accounts.rent.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         },
-        signer_seeds
+        both_signer_seeds
     );
     initialize_user_drift(create_user_cpi_context, 0, [0; 32])?;
 
@@ -159,7 +220,7 @@ fn init_drift_accounts(
 
 fn init_marginfi_account(
     ctx: &Context<InitUser>,
-    signer_seeds: &[&[&[u8]]]
+    init_rent_payer_signer_seeds: &[&[&[u8]]]
 ) -> Result<()> {
     let ix = solana_program::instruction::Instruction {
         program_id: ctx.accounts.marginfi_program.key(),
@@ -182,7 +243,7 @@ fn init_marginfi_account(
             ctx.accounts.init_rent_payer.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
         ],
-        signer_seeds
+        init_rent_payer_signer_seeds
     )?;
 
     Ok(())

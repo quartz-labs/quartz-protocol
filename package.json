@@ -2,12 +2,20 @@
   "scripts": {
     "build": "anchor build",
     "test": "RUST_LOG= jest --runInBand",
-    "test:user": "RUST_LOG= jest --runInBand tests/quartz/userQuartz.test.ts tests/quartz/userDrift.test.ts",
+    "test:user": "RUST_LOG= jest --runInBand tests/quartz/user.test.ts",
+    "test:user:verbose": "jest --runInBand tests/quartz/user.test.ts > tests/test-output.log 2>&1",
     "test:balance": "RUST_LOG= jest --runInBand tests/quartz/balance.test.ts",
+    "test:balance:verbose": "jest --runInBand tests/quartz/balance.test.ts > tests/test-output.log 2>&1",
     "test:collateralRepay": "RUST_LOG= jest --runInBand tests/quartz/collateralRepay.test.ts",
+    "test:collateralRepay:verbose": "jest --runInBand tests/quartz/collateralRepay.test.ts > tests/test-output.log 2>&1",
     "test:repay": "yarn test:collateralRepay",
+    "test:repay:verbose": "yarn test:collateralRepay:verbose",
     "test:topUpCard": "RUST_LOG= jest --runInBand tests/quartz/topUpCard.test.ts",
-    "test:topup": "yarn test:topUpCard"
+    "test:topUpCard:verbose": "jest --runInBand tests/quartz/topUpCard.test.ts > tests/test-output.log 2>&1",
+    "test:topup": "yarn test:topUpCard",
+    "test:topup:verbose": "yarn test:topUpCard:verbose",
+    "test:upgradeVault": "RUST_LOG= jest --runInBand tests/quartz/upgradeVault.test.ts",
+    "test:upgradeVault:verbose": "jest --runInBand tests/quartz/upgradeVault.test.ts > tests/test-output.log 2>&1"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.29.0",

@@ -48,6 +48,7 @@ pub struct TopUpCard<'info> {
     #[account(mut)]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
+    /// CHECK: Safe once address is correct
     #[account(
         mut,
         seeds = [b"bridge_rent_payer"],

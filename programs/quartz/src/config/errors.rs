@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum QuartzError {
+    #[msg("Vault already initialized")]
+    VaultAlreadyInitialized,
     #[msg("Illegal collateral repay instructions")]
     IllegalCollateralRepayInstructions,
     #[msg("Invalid mint provided")]

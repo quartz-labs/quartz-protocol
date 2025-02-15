@@ -15,13 +15,14 @@ pub struct CloseUser<'info> {
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump = vault.bump,
         has_one = owner,
-        close = init_rent_payer,
+        close = init_rent_payer
     )]
     pub vault: Box<Account<'info, Vault>>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    /// CHECK: Safe once address is correct
     #[account(
         mut,
         seeds = [b"init_rent_payer"],
@@ -61,12 +62,12 @@ pub struct CloseUser<'info> {
 pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let seeds = &[
+    let seeds_vault = &[
         b"vault",
         owner.as_ref(),
         &[vault_bump]
     ];
-    let signer_seeds = &[&seeds[..]];
+    let signer_seeds_vault = &[&seeds_vault[..]];
 
     // let delete_user_cpi_context = CpiContext::new_with_signer(
     //     ctx.accounts.drift_program.to_account_info(),
@@ -102,10 +103,17 @@ pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
             ctx.accounts.drift_state.to_account_info(),
             ctx.accounts.vault.to_account_info(),
         ],
-        signer_seeds,
+        signer_seeds_vault,
     )?;
 
     // Repay user the init rent fee
+    let init_rent_payer_bump = ctx.bumps.init_rent_payer;
+    let seeds_init_rent_payer = &[
+        b"init_rent_payer".as_ref(),
+        &[init_rent_payer_bump]
+    ];
+    let signer_seeds_init_rent_payer = &[&seeds_init_rent_payer[..]];
+
     invoke_signed(
         &system_instruction::transfer(
             ctx.accounts.init_rent_payer.key, 
@@ -117,7 +125,7 @@ pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
             ctx.accounts.owner.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
         ],
-        signer_seeds
+        signer_seeds_init_rent_payer
     )?;
 
     Ok(())

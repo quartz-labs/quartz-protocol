@@ -21,3 +21,10 @@ export const PROVIDER_BASE_ADDRESS = "0x2f08d2B5E1CBC587cfdf7DA1679F2fe200fe493d
 export const QUARTZ_CALLER_BASE_ADDRESS = "0x28A0105A0cf8C0485a4956ba14b5274e9ED229DE";
 export const TOKEN_MESSAGE_MINTER_PROGRAM_ID = new PublicKey("CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3");
 export const MESSAGE_TRANSMITTER_PROGRAM_ID = new PublicKey("CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd");
+
+export const MARGINFI_PROGRAM_ID = new PublicKey("MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA");
+export const MARGINFI_GROUP_1 = new PublicKey("4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8");
+
+export const INIT_ACCOUNT_RENT_FEE = BigInt(50000000); // 0.05 SOL
+export const INIT_GAS_FEE = BigInt(10000); // 0.00001 SOL
+export const CLOSE_GAS_FEE = BigInt(5000); // 0.000005 SOL

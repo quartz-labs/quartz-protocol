@@ -147,3 +147,11 @@ export const getBridgeRentPayer = () => {
     );
     return bridgeRentPayer;
 };
+
+export const getInitRentPayer = () => {
+    const [initRentPayer] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("init_rent_payer")],
+        QUARTZ_PROGRAM_ID
+    );
+    return initRentPayer;
+};

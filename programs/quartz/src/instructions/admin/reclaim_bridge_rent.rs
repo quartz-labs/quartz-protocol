@@ -17,6 +17,7 @@ pub struct ReclaimBridgeRent<'info> {
     )]
     pub rent_reclaimer: Signer<'info>,
 
+    /// CHECK: Safe once address is correct
     #[account(
         mut,
         seeds = [b"bridge_rent_payer"],

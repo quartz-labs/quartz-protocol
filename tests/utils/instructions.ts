@@ -1,5 +1,5 @@
 import { BN, Program } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { BanksClient } from "solana-bankrun";
 import { Quartz } from "../../target/types/quartz";
 import { processTransaction } from "./helpers";
@@ -8,23 +8,51 @@ import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction } 
 import { AccountMeta } from "./interfaces";
 
 
+export interface InitUserParams {
+    requiresMarginfiAccount: boolean;
+    spendLimitPerTransaction: number;
+    spendLimitPerTimeframe: number;
+    extendSpendLimitPerTimeframeResetSlotAmount: number;
+}
+
 export interface InitUserAccounts {
     vault: PublicKey;
     owner: PublicKey;
+    initRentPayer: PublicKey;
+    driftUser: PublicKey;
+    driftUserStats: PublicKey;
+    driftState: PublicKey;
+    driftProgram: PublicKey;
+    marginfiGroup: PublicKey;
+    marginfiAccount: PublicKey;
+    marginfiProgram: PublicKey;
+    rent: PublicKey;
     systemProgram: PublicKey;
 }
   
 export const initUser = async (
     quartzProgram: Program<Quartz>,
     banksClient: BanksClient,
-    accounts: InitUserAccounts
+    signers: Keypair[],
+    params: InitUserParams,
+    accounts: InitUserAccounts,
 ) => {
     const ix = await quartzProgram.methods
-      .initUser()
-      .accounts(accounts)
-      .instruction();
+        .initUser(
+            params.requiresMarginfiAccount, 
+            new BN(params.spendLimitPerTransaction), 
+            new BN(params.spendLimitPerTimeframe), 
+            new BN(params.extendSpendLimitPerTimeframeResetSlotAmount)
+        )
+        .accounts(accounts)
+        .instruction();
   
-    const meta = await processTransaction(banksClient, accounts.owner, [ix]);
+    const meta = await processTransaction(
+        banksClient, 
+        accounts.owner, 
+        [ix],
+        signers
+    );
     return meta;
 };
   
@@ -32,6 +60,12 @@ export const initUser = async (
 export interface CloseUserAccounts {
     vault: PublicKey;
     owner: PublicKey;
+    initRentPayer: PublicKey;
+    driftUser: PublicKey;
+    driftUserStats: PublicKey;
+    driftState: PublicKey;
+    driftProgram: PublicKey;
+    systemProgram: PublicKey;
 }
   
 export const closeUser = async (
@@ -47,54 +81,41 @@ export const closeUser = async (
     const meta = await processTransaction(banksClient, accounts.owner, [ix]);
     return meta;
 }
-  
-  
-export interface InitDriftAccountAccounts {
+
+
+export interface UpgradeVaultParams {
+    spendLimitPerTransaction: number;
+    spendLimitPerTimeframe: number;
+    extendSpendLimitPerTimeframeResetSlotAmount: number;
+}
+
+export interface UpgradeVaultAccounts {
     vault: PublicKey;
     owner: PublicKey;
-    driftUser: PublicKey;
-    driftUserStats: PublicKey;
-    driftState: PublicKey;
-    driftProgram: PublicKey;
-    rent: PublicKey;
+    initRentPayer: PublicKey;
     systemProgram: PublicKey;
 }
   
-export const initDriftAccount = async (
+export const upgradeVault = async (
     quartzProgram: Program<Quartz>,
     banksClient: BanksClient,
-    accounts: InitDriftAccountAccounts
+    params: UpgradeVaultParams,
+    accounts: UpgradeVaultAccounts,
 ) => {
     const ix = await quartzProgram.methods
-      .initDriftAccount()
-      .accounts(accounts)
-      .instruction();
+        .upgradeVault(
+            new BN(params.spendLimitPerTransaction), 
+            new BN(params.spendLimitPerTimeframe), 
+            new BN(params.extendSpendLimitPerTimeframeResetSlotAmount)
+        )
+        .accounts(accounts)
+        .instruction();
   
-    const meta = await processTransaction(banksClient, accounts.owner, [ix]);
-    return meta;
-};
-  
-  
-export interface CloseDriftAccountAccounts {
-    vault: PublicKey;
-    owner: PublicKey;
-    driftUser: PublicKey;
-    driftUserStats: PublicKey;
-    driftState: PublicKey;
-    driftProgram: PublicKey;
-}
-  
-export const closeDriftAccount = async (
-    quartzProgram: Program<Quartz>,
-    banksClient: BanksClient,
-    accounts: CloseDriftAccountAccounts
-) => {
-    const ix = await quartzProgram.methods
-    .closeDriftAccount()
-    .accounts(accounts)
-    .instruction();
-
-    const meta = await processTransaction(banksClient, accounts.owner, [ix]);
+    const meta = await processTransaction(
+        banksClient, 
+        accounts.owner, 
+        [ix]
+    );
     return meta;
 };
 

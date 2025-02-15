@@ -5,16 +5,18 @@ use solana_program::{program::invoke_signed, system_instruction};
 
 #[derive(Accounts)]
 pub struct UpgradeVault<'info> {
+    /// CHECK: Safe once address is correct
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump
     )]
-    pub vault: UncheckedAccount<'info>, // TODO: If any weird issues, change back to AccountInfo
+    pub vault: UncheckedAccount<'info>, 
 
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    /// CHECK: Safe once address is correct
     #[account(
         mut,
         seeds = [b"init_rent_payer"],
@@ -98,7 +100,7 @@ pub fn upgrade_vault_handler(
     // Reallocate data
     existing_vault.realloc(Vault::INIT_SPACE, false)?;
     let mut vault_data = existing_vault.try_borrow_mut_data()?;
-    vault_data[ANCHOR_DISCRIMINATOR..].copy_from_slice(&new_vault_vec[ANCHOR_DISCRIMINATOR..]);
+    vault_data[ANCHOR_DISCRIMINATOR..].copy_from_slice(&new_vault_vec[..]);
 
     Ok(())
 }
