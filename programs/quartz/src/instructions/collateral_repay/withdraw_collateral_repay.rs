@@ -41,7 +41,7 @@ use crate::{
     load_mut, 
     state::{CollateralRepayLedger, DriftMarket, Vault}, 
     utils::{
-        calculate_initial_margin_requirement, check_can_auto_repay, get_drift_market, get_quartz_account_health, normalize_price_exponents, validate_start_collateral_repay_ix
+        get_drift_market, get_account_health, normalize_price_exponents, validate_start_collateral_repay_ix
     }
 };
 
@@ -240,7 +240,7 @@ pub fn withdraw_collateral_repay_handler<'info>(
 
     // Validate auto repay threshold if the owner isn't the caller
     if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
-        validate_auto_repay_threshold(
+        validate_health(
             &ctx, 
             deposit_market_index, 
             withdraw_market.market_index
@@ -330,13 +330,13 @@ fn validate_prices<'info>(
 }
 
 #[inline(never)]
-fn validate_auto_repay_threshold<'info>(
+fn validate_health<'info>(
     ctx: &Context<'_, '_, 'info, 'info, WithdrawCollateralRepay<'info>>,
     deposit_market_index: u16,
     withdraw_market_index: u16
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
-    let margin_calculation = calculate_initial_margin_requirement(
+    let health = get_account_health(
         user,
         &ctx.accounts.drift_state,
         withdraw_market_index,
@@ -344,15 +344,13 @@ fn validate_auto_repay_threshold<'info>(
         &ctx.remaining_accounts
     )?;
 
-    let can_auto_repay = check_can_auto_repay(margin_calculation)?;
     check!(
-        !can_auto_repay,
+        health > 0,
         QuartzError::AutoRepayNotEnoughSold
     );
 
-    let quartz_account_health = get_quartz_account_health(margin_calculation)?;
     check!(
-        quartz_account_health <= AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT,
+        health <= AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT,
         QuartzError::AutoRepayTooMuchSold
     );
 

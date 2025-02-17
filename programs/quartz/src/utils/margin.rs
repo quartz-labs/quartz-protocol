@@ -8,12 +8,29 @@ use drift::{
     }  
 };
 use std::collections::BTreeSet;
-
-use crate::config::{QuartzError, ACCOUNT_HEALTH_BUFFER_PERCENT};
+use crate::config::QuartzError;
 
 pub(crate) type MarketSet = BTreeSet<u16>;
 
-pub fn calculate_initial_margin_requirement<'info>(
+pub fn get_account_health<'info>(
+    drift_user: &User,
+    drift_state: &State,
+    market_index_asset: u16,
+    market_index_liability: u16,
+    remaining_accounts: &'info [AccountInfo<'info>],
+) -> Result<u8> {
+    let initial_margin_calculation = calculate_initial_margin_requirement(
+        drift_user,
+        drift_state,
+        market_index_asset,
+        market_index_liability,
+        remaining_accounts,
+    )?;
+
+    calculate_quartz_account_health(initial_margin_calculation)
+}
+
+fn calculate_initial_margin_requirement<'info>(
     drift_user: &User,
     drift_state: &State,
     market_index_asset: u16,
@@ -49,58 +66,11 @@ pub fn calculate_initial_margin_requirement<'info>(
     Ok(margin_calculation)
 }
 
-pub fn check_can_auto_repay(
-    margin_calculation: MarginCalculation,
-) -> Result<bool> {
-    let has_sufficient_margin = margin_calculation.meets_margin_requirement();
-    Ok(!has_sufficient_margin)
-}
-
-pub fn get_quartz_account_health(
-    margin_calculation: MarginCalculation,
+fn calculate_quartz_account_health(
+    initial_margin_calculation: MarginCalculation,
 ) -> Result<u8> {
-    let total_collateral = margin_calculation.total_collateral;
-    let margin_requirement = margin_calculation.margin_requirement;
-
-    if total_collateral <= 0 || ACCOUNT_HEALTH_BUFFER_PERCENT >= 100 {
-        return Ok(0);
-    }
-
-    if margin_requirement == 0 {
-        return Ok(100);
-    }
-
-    let total_collateral_unsigned = total_collateral as u128;
-
-    let buffer_multiplier = 100u128.checked_sub(ACCOUNT_HEALTH_BUFFER_PERCENT as u128)
-        .ok_or(QuartzError::MathOverflow)?;
-    
-    let adjusted_total_collateral = total_collateral_unsigned
-        .checked_mul(buffer_multiplier)
-        .ok_or(QuartzError::MathOverflow)?
-        .checked_div(100)
-        .ok_or(QuartzError::MathOverflow)?;
-
-    if margin_requirement > adjusted_total_collateral {
-        return Ok(0);
-    }
-
-    let health = adjusted_total_collateral
-        .checked_sub(margin_requirement)
-        .ok_or(QuartzError::MathOverflow)?
-        .checked_mul(100)
-        .ok_or(QuartzError::MathOverflow)?
-        .checked_div(adjusted_total_collateral)
-        .ok_or(QuartzError::MathOverflow)?;
-
-    Ok(health as u8)
-}
-
-fn _get_drift_account_health<'info>(
-    margin_calculation: MarginCalculation,
-) -> Result<u8> {
-    let total_collateral = margin_calculation.total_collateral;
-    let margin_requirement = margin_calculation.margin_requirement;
+    let total_collateral = initial_margin_calculation.total_collateral;
+    let margin_requirement = initial_margin_calculation.margin_requirement;
 
     if total_collateral < 0 {
         return Ok(0);

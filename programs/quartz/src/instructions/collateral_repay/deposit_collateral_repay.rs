@@ -32,7 +32,7 @@ use crate::{
     load_mut, 
     state::{CollateralRepayLedger, Vault}, 
     utils::{
-        calculate_initial_margin_requirement, check_can_auto_repay, get_drift_market, validate_start_collateral_repay_ix
+        get_account_health, get_drift_market, validate_start_collateral_repay_ix
     }
 };
 
@@ -150,7 +150,7 @@ pub fn deposit_collateral_repay_handler<'info>(
         )?;
         let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[8..10].try_into().unwrap());
 
-        validate_auto_repay_threshold(&ctx, deposit_market_index, withdraw_market_index)?;
+        validate_health(&ctx, deposit_market_index, withdraw_market_index)?;
     }
 
     // Calculate deposit tokens received from Jupiter swap
@@ -233,13 +233,13 @@ pub fn deposit_collateral_repay_handler<'info>(
 }
 
 #[inline(never)]
-fn validate_auto_repay_threshold<'info>(
+fn validate_health<'info>(
     ctx: &Context<'_, '_, 'info, 'info, DepositCollateralRepay<'info>>,
     deposit_market_index: u16,
     withdraw_market_index: u16
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
-    let margin_calculation = calculate_initial_margin_requirement(
+    let health = get_account_health(
         user,
         &ctx.accounts.drift_state,
         withdraw_market_index,
@@ -247,9 +247,8 @@ fn validate_auto_repay_threshold<'info>(
         &ctx.remaining_accounts
     )?;
 
-    let can_auto_repay = check_can_auto_repay(margin_calculation)?;
     check!(
-        can_auto_repay,
+        health <= 0,
         QuartzError::AutoRepayThresholdNotReached
     );
 
