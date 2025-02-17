@@ -34,17 +34,14 @@ use crate::{
     check, 
     config::{
         QuartzError, 
-        COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT, 
-        COLLATERAL_REPAY_MAX_SLIPPAGE_BPS, 
+        AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT, 
+        AUTO_REPAY_MAX_SLIPPAGE_BPS, 
         PYTH_MAX_PRICE_AGE_SECONDS
     }, 
     load_mut, 
-    state::{DriftMarket, CollateralRepayLedger, Vault}, 
+    state::{CollateralRepayLedger, DriftMarket, Vault}, 
     utils::{
-        get_drift_margin_calculation, 
-        get_drift_market, 
-        get_quartz_account_health, 
-        normalize_price_exponents, validate_start_collateral_repay_ix
+        calculate_initial_margin_requirement, check_can_auto_repay, get_drift_market, get_quartz_account_health, normalize_price_exponents, validate_start_collateral_repay_ix
     }
 };
 
@@ -241,9 +238,9 @@ pub fn withdraw_collateral_repay_handler<'info>(
     );
     close_account(cpi_ctx_close)?;
 
-    // Validate account health if the owner isn't the caller
+    // Validate auto repay threshold if the owner isn't the caller
     if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
-        validate_account_health(
+        validate_auto_repay_threshold(
             &ctx, 
             deposit_market_index, 
             withdraw_market.market_index
@@ -317,7 +314,7 @@ fn validate_prices<'info>(
  
     // Allow for slippage, using integar multiplication to prevent floating point errors
     let slippage_multiplier_deposit: u128 = 100 * 100; // 100% x 100bps
-    let slippage_multiplier_withdraw: u128 = slippage_multiplier_deposit - (COLLATERAL_REPAY_MAX_SLIPPAGE_BPS as u128);
+    let slippage_multiplier_withdraw: u128 = slippage_multiplier_deposit - (AUTO_REPAY_MAX_SLIPPAGE_BPS as u128);
 
     let deposit_slippage_check_value = deposit_value.checked_mul(slippage_multiplier_deposit)
         .ok_or(QuartzError::MathOverflow)?;
@@ -333,30 +330,30 @@ fn validate_prices<'info>(
 }
 
 #[inline(never)]
-fn validate_account_health<'info>(
+fn validate_auto_repay_threshold<'info>(
     ctx: &Context<'_, '_, 'info, 'info, WithdrawCollateralRepay<'info>>,
     deposit_market_index: u16,
     withdraw_market_index: u16
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
-    let margin_calculation = get_drift_margin_calculation(
-        user, 
-        &ctx.accounts.drift_state, 
-        withdraw_market_index, 
+    let margin_calculation = calculate_initial_margin_requirement(
+        user,
+        &ctx.accounts.drift_state,
+        withdraw_market_index,
         deposit_market_index,
         &ctx.remaining_accounts
     )?;
 
-    let quartz_account_health = get_quartz_account_health(margin_calculation)?;
-
+    let can_auto_repay = check_can_auto_repay(margin_calculation)?;
     check!(
-        quartz_account_health > 0,
-        QuartzError::CollateralRepayHealthTooLow
+        !can_auto_repay,
+        QuartzError::AutoRepayNotEnoughSold
     );
 
+    let quartz_account_health = get_quartz_account_health(margin_calculation)?;
     check!(
-        quartz_account_health <= COLLATERAL_REPAY_MAX_HEALTH_RESULT_PERCENT,
-        QuartzError::CollateralRepayHealthTooHigh
+        quartz_account_health <= AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT,
+        QuartzError::AutoRepayTooMuchSold
     );
 
     Ok(())

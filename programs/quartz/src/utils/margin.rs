@@ -1,19 +1,19 @@
-use std::collections::BTreeSet;
 use anchor_lang::prelude::*;
 use drift::{
     instructions::optional_accounts::{load_maps, AccountMaps}, 
-    math::margin::calculate_margin_requirement_and_total_collateral_and_liability_info, 
+    math::margin::{calculate_margin_requirement_and_total_collateral_and_liability_info, MarginRequirementType}, 
     state::{
-        margin_calculation::{MarginCalculation, MarginContext, MarketIdentifier}, 
+        margin_calculation::{MarginCalculation, MarginContext}, 
         spot_market_map::get_writable_spot_market_set_from_many, state::State, user::User
     }  
 };
+use std::collections::BTreeSet;
 
-use crate::config::{ACCOUNT_HEALTH_BUFFER_PERCENT, QuartzError};
+use crate::config::{QuartzError, ACCOUNT_HEALTH_BUFFER_PERCENT};
 
 pub(crate) type MarketSet = BTreeSet<u16>;
 
-pub fn get_drift_margin_calculation<'info>(
+pub fn calculate_initial_margin_requirement<'info>(
     drift_user: &User,
     drift_state: &State,
     market_index_asset: u16,
@@ -21,9 +21,8 @@ pub fn get_drift_margin_calculation<'info>(
     remaining_accounts: &'info [AccountInfo<'info>],
 ) -> Result<MarginCalculation> {
     let clock = Clock::get()?;
-    let now = clock.unix_timestamp;
-
     let remaining_accounts_iter = &mut remaining_accounts.iter().peekable();
+    
     let AccountMaps {
         perp_market_map,
         spot_market_map,
@@ -36,50 +35,25 @@ pub fn get_drift_margin_calculation<'info>(
         Some(drift_state.oracle_guard_rails),
     )?;
 
-    let liquidation_margin_buffer_ratio = drift_state.liquidation_margin_buffer_ratio;
-    let context = MarginContext::liquidation(liquidation_margin_buffer_ratio)
-        .track_market_margin_requirement(MarketIdentifier::spot(market_index_liability))?
-        .fuel_numerator(drift_user, now);
+    let margin_context = MarginContext::standard(MarginRequirementType::Initial)
+        .strict(true);
 
     let margin_calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
         drift_user,
         &perp_market_map,
         &spot_market_map,
         &mut oracle_map,
-        context
+        margin_context
     )?;
 
     Ok(margin_calculation)
 }
 
-pub fn _get_drift_account_health<'info>(
+pub fn check_can_auto_repay(
     margin_calculation: MarginCalculation,
-) -> Result<u8> {
-    let total_collateral = margin_calculation.total_collateral;
-    let margin_requirement = margin_calculation.margin_requirement;
-
-    if total_collateral < 0 {
-        return Ok(0);
-    }
-
-    let total_collateral_unsigned = total_collateral as u128;
-
-    if margin_requirement > total_collateral_unsigned {
-        return Ok(0);
-    }
-
-    if margin_requirement == 0 {
-        return Ok(100);
-    }
-
-    let health = total_collateral_unsigned.checked_sub(margin_requirement)
-        .ok_or(QuartzError::MathOverflow)?
-        .checked_mul(100)
-        .ok_or(QuartzError::MathOverflow)?
-        .checked_div(total_collateral_unsigned)
-        .ok_or(QuartzError::MathOverflow)?;
-
-    Ok(health as u8)
+) -> Result<bool> {
+    let has_sufficient_margin = margin_calculation.meets_margin_requirement();
+    Ok(!has_sufficient_margin)
 }
 
 pub fn get_quartz_account_health(
@@ -117,6 +91,36 @@ pub fn get_quartz_account_health(
         .checked_mul(100)
         .ok_or(QuartzError::MathOverflow)?
         .checked_div(adjusted_total_collateral)
+        .ok_or(QuartzError::MathOverflow)?;
+
+    Ok(health as u8)
+}
+
+fn _get_drift_account_health<'info>(
+    margin_calculation: MarginCalculation,
+) -> Result<u8> {
+    let total_collateral = margin_calculation.total_collateral;
+    let margin_requirement = margin_calculation.margin_requirement;
+
+    if total_collateral < 0 {
+        return Ok(0);
+    }
+
+    let total_collateral_unsigned = total_collateral as u128;
+
+    if margin_requirement > total_collateral_unsigned {
+        return Ok(0);
+    }
+
+    if margin_requirement == 0 {
+        return Ok(100);
+    }
+
+    let health = total_collateral_unsigned.checked_sub(margin_requirement)
+        .ok_or(QuartzError::MathOverflow)?
+        .checked_mul(100)
+        .ok_or(QuartzError::MathOverflow)?
+        .checked_div(total_collateral_unsigned)
         .ok_or(QuartzError::MathOverflow)?;
 
     Ok(health as u8)

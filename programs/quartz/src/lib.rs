@@ -43,14 +43,14 @@ pub mod quartz {
         requires_marginfi_account: bool,
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
-        extend_spend_limit_per_timeframe_reset_slot_amount: u64
+        timeframe_in_slots: u64
     ) -> Result<()> {
         init_user_handler(
             ctx, 
             requires_marginfi_account, 
             spend_limit_per_transaction, 
             spend_limit_per_timeframe, 
-            extend_spend_limit_per_timeframe_reset_slot_amount
+            timeframe_in_slots
         )
     }
 
@@ -62,13 +62,13 @@ pub mod quartz {
         ctx: Context<UpgradeVault>,
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
-        extend_spend_limit_per_timeframe_reset_slot_amount: u64
+        timeframe_in_slots: u64
     ) -> Result<()> {
         upgrade_vault_handler(
             ctx, 
             spend_limit_per_transaction, 
             spend_limit_per_timeframe, 
-            extend_spend_limit_per_timeframe_reset_slot_amount
+            timeframe_in_slots
         )
     }
 

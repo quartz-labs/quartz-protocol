@@ -22,7 +22,7 @@ pub struct Vault {
     pub next_spend_limit_per_timeframe_reset_slot: u64, 
 
     // How much to extend the next_spend_limit_per_timeframe_reset_slot by when it's reached
-    pub extend_spend_limit_per_timeframe_reset_slot_amount: u64 
+    pub timeframe_in_slots: u64 
 }
 
 impl Space for Vault {

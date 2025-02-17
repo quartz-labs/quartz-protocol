@@ -32,12 +32,12 @@ pub enum QuartzError {
     UnableToLoadAccountLoader,
     #[msg("Could not deserialize introspection instruction data")]
     DeserializationError,
-    #[msg("Account health is not low enough for collateral_repay")]
-    NotReachedCollateralRepayThreshold,
-    #[msg("Too much collateral sold in collateral_repay")]
-    CollateralRepayHealthTooHigh,
-    #[msg("User health is still zero after collateral_repay")]
-    CollateralRepayHealthTooLow,
+    #[msg("Total collateral cannot be less than margin requirement for auto repay")]
+    AutoRepayThresholdNotReached,
+    #[msg("Too much collateral sold in auto repay")]
+    AutoRepayTooMuchSold,
+    #[msg("Not enough collateral sold in auto repay")]
+    AutoRepayNotEnoughSold,
     #[msg("Collateral repay deposit and withdraw markets must be different")]
     IdenticalCollateralRepayMarkets,
     #[msg("Invalid starting vault balance")]

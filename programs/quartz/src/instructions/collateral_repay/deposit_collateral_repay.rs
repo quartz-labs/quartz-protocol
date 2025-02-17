@@ -32,7 +32,7 @@ use crate::{
     load_mut, 
     state::{CollateralRepayLedger, Vault}, 
     utils::{
-        get_drift_margin_calculation, get_drift_market, get_quartz_account_health, validate_start_collateral_repay_ix
+        calculate_initial_margin_requirement, check_can_auto_repay, get_drift_market, validate_start_collateral_repay_ix
     }
 };
 
@@ -142,7 +142,7 @@ pub fn deposit_collateral_repay_handler<'info>(
     )?;
     validate_start_collateral_repay_ix(&start_instruction)?;
     
-    // Validate account health if the owner isn't the caller
+    // Validate auto repay threshold if the owner isn't the caller
     if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
         let withdraw_instruction = load_instruction_at_checked(
             index + 1, 
@@ -150,7 +150,7 @@ pub fn deposit_collateral_repay_handler<'info>(
         )?;
         let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[8..10].try_into().unwrap());
 
-        validate_account_health(&ctx, deposit_market_index, withdraw_market_index)?;
+        validate_auto_repay_threshold(&ctx, deposit_market_index, withdraw_market_index)?;
     }
 
     // Calculate deposit tokens received from Jupiter swap
@@ -233,25 +233,24 @@ pub fn deposit_collateral_repay_handler<'info>(
 }
 
 #[inline(never)]
-fn validate_account_health<'info>(
+fn validate_auto_repay_threshold<'info>(
     ctx: &Context<'_, '_, 'info, 'info, DepositCollateralRepay<'info>>,
     deposit_market_index: u16,
     withdraw_market_index: u16
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
-    let margin_calculation = get_drift_margin_calculation(
-        user, 
-        &ctx.accounts.drift_state, 
-        withdraw_market_index, 
+    let margin_calculation = calculate_initial_margin_requirement(
+        user,
+        &ctx.accounts.drift_state,
+        withdraw_market_index,
         deposit_market_index,
         &ctx.remaining_accounts
     )?;
 
-    let quartz_account_health = get_quartz_account_health(margin_calculation)?;
-
+    let can_auto_repay = check_can_auto_repay(margin_calculation)?;
     check!(
-        quartz_account_health == 0,
-        QuartzError::NotReachedCollateralRepayThreshold
+        can_auto_repay,
+        QuartzError::AutoRepayThresholdNotReached
     );
 
     Ok(())

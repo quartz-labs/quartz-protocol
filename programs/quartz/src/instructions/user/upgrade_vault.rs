@@ -31,7 +31,7 @@ pub fn upgrade_vault_handler(
     ctx: Context<UpgradeVault>,
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
-    extend_spend_limit_per_timeframe_reset_slot_amount: u64
+    timeframe_in_slots: u64
 ) -> Result<()> {
     // Get current Vault data
     let existing_vault = &ctx.accounts.vault;
@@ -64,8 +64,8 @@ pub fn upgrade_vault_handler(
         spend_limit_per_transaction,
         spend_limit_per_timeframe,
         remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
-        next_spend_limit_per_timeframe_reset_slot: current_slot + extend_spend_limit_per_timeframe_reset_slot_amount,
-        extend_spend_limit_per_timeframe_reset_slot_amount
+        next_spend_limit_per_timeframe_reset_slot: current_slot + timeframe_in_slots,
+        timeframe_in_slots
     };
     let new_vault_vec = new_vault.try_to_vec().unwrap();
 

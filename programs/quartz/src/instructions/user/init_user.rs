@@ -77,7 +77,7 @@ pub fn init_user_handler(
     requires_marginfi_account: bool,
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
-    extend_spend_limit_per_timeframe_reset_slot_amount: u64
+    timeframe_in_slots: u64
 ) -> Result<()> {
     let vault_bump = ctx.bumps.vault;
     let owner = ctx.accounts.owner.key();
@@ -126,7 +126,7 @@ pub fn init_user_handler(
         both_signer_seeds, 
         spend_limit_per_transaction, 
         spend_limit_per_timeframe, 
-        extend_spend_limit_per_timeframe_reset_slot_amount
+        timeframe_in_slots
     )?;
 
     init_drift_accounts(&ctx, both_signer_seeds)?;
@@ -143,7 +143,7 @@ fn init_vault(
     both_signer_seeds: &[&[&[u8]]],
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
-    extend_spend_limit_per_timeframe_reset_slot_amount: u64
+    timeframe_in_slots: u64
 ) -> Result<()> {
     // Init vault space
     let rent = Rent::get()?;
@@ -170,8 +170,8 @@ fn init_vault(
         spend_limit_per_transaction,
         spend_limit_per_timeframe,
         remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
-        next_spend_limit_per_timeframe_reset_slot: current_slot + extend_spend_limit_per_timeframe_reset_slot_amount,
-        extend_spend_limit_per_timeframe_reset_slot_amount
+        next_spend_limit_per_timeframe_reset_slot: current_slot + timeframe_in_slots,
+        timeframe_in_slots
     };
     let vault_data_vec = vault_data.try_to_vec()?;
 
