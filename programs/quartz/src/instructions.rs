@@ -9,3 +9,6 @@ pub use collateral_repay::*;
 
 mod admin;
 pub use admin::*;
+
+mod spend;
+pub use spend::*;

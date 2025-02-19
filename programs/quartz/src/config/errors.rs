@@ -62,4 +62,8 @@ pub enum QuartzError {
     InvalidLookupTableContent,
     #[msg("Invalid lookup table authority")]
     InvalidLookupTableAuthority,
+    #[msg("Insufficient spend limit remaining for the timeframe")]
+    InsufficientTimeframeSpendLimit,
+    #[msg("Transaction is larger than the transaction spend limit")]
+    InsufficientTransactionSpendLimit,
 }

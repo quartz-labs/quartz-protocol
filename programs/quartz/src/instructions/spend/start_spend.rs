@@ -1,0 +1,172 @@
+use anchor_lang::prelude::*;
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token_interface::{
+        TokenInterface, 
+        TokenAccount, 
+        Mint
+    }
+};
+use drift::{
+    program::Drift,
+    cpi::withdraw as drift_withdraw, 
+    cpi::accounts::Withdraw as DriftWithdraw,
+    state::{
+        state::State as DriftState, 
+        user::{User as DriftUser, UserStats as DriftUserStats}
+    }
+};
+use crate::{
+    check, config::{QuartzError, SPEND_CALLER, USDC_MARKET_INDEX}, state::Vault, utils::get_drift_market
+};
+
+#[derive(Accounts)]
+pub struct StartSpend<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault".as_ref(), owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner
+    )]
+    pub vault: Box<Account<'info, Vault>>,
+
+    /// CHECK: Can be any account, once it has a Vault
+    pub owner: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        constraint = spend_caller.key().eq(&SPEND_CALLER)
+    )]
+    pub spend_caller: Signer<'info>,
+
+    #[account(
+        init,
+        seeds = [b"spend_mule".as_ref(), owner.key().as_ref()],
+        bump,
+        payer = spend_caller,
+        token::mint = usdc_mint,
+        token::authority = vault
+    )]
+    pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(
+        mut,
+        seeds = [b"user".as_ref(), vault.key().as_ref(), (0u16).to_le_bytes().as_ref()],
+        seeds::program = drift_program.key(),
+        bump
+    )]
+    pub drift_user: AccountLoader<'info, DriftUser>,
+    
+    #[account(
+        mut,
+        seeds = [b"user_stats".as_ref(), vault.key().as_ref()],
+        seeds::program = drift_program.key(),
+        bump
+    )]
+    pub drift_user_stats: AccountLoader<'info, DriftUserStats>,
+
+    #[account(
+        mut,
+        seeds = [b"drift_state".as_ref()],
+        seeds::program = drift_program.key(),
+        bump
+    )]
+    pub drift_state: Box<Account<'info, DriftState>>,
+
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub spot_market_vault: UncheckedAccount<'info>,
+    
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    pub drift_signer: UncheckedAccount<'info>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+
+    pub associated_token_program: Program<'info, AssociatedToken>,
+
+    pub drift_program: Program<'info, Drift>,
+
+    pub system_program: Program<'info, System>,
+}
+
+pub fn start_spend_handler<'info>(
+    ctx: Context<'_, '_, '_, 'info, StartSpend<'info>>, 
+    amount_usdc_base_units: u64,
+) -> Result<()> {
+    // TODO: Check next instruction is complete_spend, and that all state is the same
+
+    // Validate market index and mint
+    let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
+    check!(
+        &ctx.accounts.spl_mint.key().eq(&drift_market.mint),
+        QuartzError::InvalidMint
+    );
+
+    process_spend_limits(&mut ctx.accounts.vault, amount_usdc_base_units)?;
+    
+    let vault_bump = ctx.accounts.vault.bump;
+    let owner = ctx.accounts.owner.key();
+    let seeds = &[
+        b"vault",
+        owner.as_ref(),
+        &[vault_bump]
+    ];
+    let signer_seeds = &[&seeds[..]];
+
+    // Use Drift Withdraw CPI to transfer USDC to spend mule
+    let mut cpi_ctx = CpiContext::new_with_signer(
+        ctx.accounts.drift_program.to_account_info(),
+        DriftWithdraw {
+            state: ctx.accounts.drift_state.to_account_info(),
+            user: ctx.accounts.drift_user.to_account_info(),
+            user_stats: ctx.accounts.drift_user_stats.to_account_info(),
+            authority: ctx.accounts.vault.to_account_info(),
+            spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
+            drift_signer: ctx.accounts.drift_signer.to_account_info(),
+            user_token_account: ctx.accounts.mule.to_account_info(),
+            token_program: ctx.accounts.token_program.to_account_info(),
+        },
+        signer_seeds
+    );
+
+    cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
+
+    drift_withdraw(cpi_ctx, USDC_MARKET_INDEX, amount_usdc_base_units, false)?;
+
+    Ok(())
+}
+
+fn process_spend_limits<'info>(
+    vault: &mut Account<'info, Vault>,
+    amount_usdc_base_units: u64
+) -> Result<()> {
+    let current_slot = Clock::get()?.slot;
+
+    // If the timeframe has elapsed, incrememt it and reset spend limit
+    if current_slot >= vault.next_spend_limit_per_timeframe_reset_slot {
+        vault.next_spend_limit_per_timeframe_reset_slot.checked_add(vault.timeframe_in_slots)
+            .ok_or(QuartzError::MathOverflow)?;
+        vault.remaining_spend_limit_per_timeframe = vault.spend_limit_per_timeframe;
+    }
+
+    check!(
+        vault.spend_limit_per_transaction >= amount_usdc_base_units,
+        QuartzError::InsufficientTransactionSpendLimit
+    );
+
+    check!(
+        vault.remaining_spend_limit_per_timeframe >= amount_usdc_base_units,
+        QuartzError::InsufficientTimeframeSpendLimit
+    );
+
+    // Adjust remaining spend limit
+    vault.remaining_spend_limit_per_timeframe.checked_sub(amount_usdc_base_units)
+        .ok_or(QuartzError::InsufficientTimeframeSpendLimit)?;
+
+    Ok(())
+}

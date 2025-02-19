@@ -112,6 +112,35 @@ pub mod quartz {
         )
     }
 
+    // Spend
+
+    pub fn start_spend<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartSpend<'info>>,
+        amount_usdc_base_units: u64
+    ) -> Result<()> {
+        start_spend_handler(ctx, amount_usdc_base_units)
+    }
+
+    pub fn complete_spend<'info>(
+        ctx: Context<'_, '_, 'info, 'info, CompleteSpend<'info>>,
+    ) -> Result<()> {
+        complete_spend_handler(ctx)
+    }
+
+    pub fn adjust_spend_limits<'info>(
+        ctx: Context<'_, '_, 'info, 'info, AdjustSpendLimits<'info>>,
+        spend_limit_per_transaction: u64,
+        spend_limit_per_timeframe: u64,
+        timeframe_in_slots: u64
+    ) -> Result<()> {
+        adjust_spend_limits_handler(
+            ctx, 
+            spend_limit_per_transaction, 
+            spend_limit_per_timeframe, 
+            timeframe_in_slots
+        )
+    }
+
     // Collateral Repay
 
     pub fn start_collateral_repay<'info>(

@@ -17,6 +17,7 @@ pub const USDC_MARKET_INDEX: u16 = 0;
 pub const PROVIDER_BASE_ADDRESS: &str = "0x55a2eeB9028ee51Ef91352Fa9f84A9450C5Af099";
 pub const QUARTZ_CALLER_BASE_ADDRESS: &str = "0x28A0105A0cf8C0485a4956ba14b5274e9ED229DE";
 pub const RENT_RECLAIMER: Pubkey = pubkey!("AhLjdeYqv4Ytw5sukK4z3x37ZGaSJ44pRqdcxqHP4ChS");
+pub const SPEND_CALLER: Pubkey = pubkey!("AhLjdeYqv4Ytw5sukK4z3x37ZGaSJ44pRqdcxqHP4ChS"); // TOOD: Replace with real one
 
 pub const DRIFT_DELETE_USER_DISCRIMINATOR: &[u8] = &[186, 85, 17, 249, 219, 231, 98, 251];
 pub const MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR: &[u8] = &[43, 78, 61, 255, 148, 52, 249, 154];
