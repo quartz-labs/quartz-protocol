@@ -12,7 +12,7 @@ pub enum QuartzError {
     MaxSlippageExceeded,
     #[msg("Swap platform fee must be zero")]
     InvalidPlatformFee,
-    #[msg("User accounts for deposit and withdraw do not match")]
+    #[msg("User accounts accross instructions must match")]
     InvalidUserAccounts,
     #[msg("Swap source token account does not match withdraw")]
     InvalidSourceTokenAccount,
@@ -66,4 +66,6 @@ pub enum QuartzError {
     InsufficientTimeframeSpendLimit,
     #[msg("Transaction is larger than the transaction spend limit")]
     InsufficientTransactionSpendLimit,
+    #[msg("start_spend instruction must be followed by complete_spend instruction")]
+    IllegalSpendInstructions,
 }

@@ -4,7 +4,7 @@ use anchor_lang::{
         self,
         load_current_index_checked, 
         load_instruction_at_checked
-    }
+    }, Discriminator
 };
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -16,6 +16,7 @@ use anchor_spl::{
         close_account
     }
 };
+use solana_program::instruction::Instruction;
 use token_messenger_minter::{
     cpi::{
         accounts::DepositForBurnContext, 
@@ -117,8 +118,18 @@ pub struct CompleteSpend<'info> {
 pub fn complete_spend_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, CompleteSpend<'info>>
 ) -> Result<()> {
-    // TODO: Check previous instruction was start
+    let index: usize = load_current_index_checked(
+        &ctx.accounts.instructions.to_account_info()
+    )?.into();
+    let start_instruction = load_instruction_at_checked(
+        index - 1, 
+        &ctx.accounts.instructions.to_account_info()
+    )?;
+    validate_start_spend_ix(&start_instruction)?;
 
+    msg!("Program account exists: {}", ctx.accounts.token_messenger_minter_program.to_account_info().executable);
+    msg!("Program owner: {}", ctx.accounts.token_messenger_minter_program.to_account_info().owner);
+    
     // Validate USDC market index and mint
     let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
     check!(
@@ -194,6 +205,21 @@ pub fn complete_spend_handler<'info>(
         signer_seeds_vault
     );
     close_account(cpi_ctx_close)?;
+
+    Ok(())
+}
+
+pub fn validate_start_spend_ix(start_spend: &Instruction) -> Result<()> {
+    check!(
+        start_spend.program_id.eq(&crate::id()),
+        QuartzError::IllegalSpendInstructions
+    );
+
+    check!(
+        start_spend.data[..8]
+            .eq(&crate::instruction::StartSpend::DISCRIMINATOR),
+        QuartzError::IllegalSpendInstructions
+    );
 
     Ok(())
 }

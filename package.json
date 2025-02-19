@@ -15,7 +15,9 @@
     "test:topup": "yarn test:topUpCard",
     "test:topup:verbose": "yarn test:topUpCard:verbose",
     "test:upgradeVault": "RUST_LOG= jest --runInBand tests/quartz/upgradeVault.test.ts",
-    "test:upgradeVault:verbose": "jest --runInBand tests/quartz/upgradeVault.test.ts > tests/test-output.log 2>&1"
+    "test:upgradeVault:verbose": "jest --runInBand tests/quartz/upgradeVault.test.ts > tests/test-output.log 2>&1",
+    "test:spend": "RUST_LOG= jest --runInBand tests/quartz/spend.test.ts",
+    "test:spend:verbose": "jest --runInBand tests/quartz/spend.test.ts > tests/test-output.log 2>&1"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.29.0",

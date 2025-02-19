@@ -4,7 +4,7 @@ use anchor_lang::{
         self,
         load_current_index_checked, 
         load_instruction_at_checked
-    }
+    }, Discriminator
 };
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -23,6 +23,7 @@ use drift::{
         user::{User as DriftUser, UserStats as DriftUserStats}
     }
 };
+use solana_program::instruction::Instruction;
 use crate::{
     check, config::{QuartzError, SPEND_CALLER, USDC_MARKET_INDEX}, state::Vault, utils::get_drift_market
 };
@@ -58,8 +59,6 @@ pub struct StartSpend<'info> {
 
     #[account(mut)]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
-
-    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mut,
@@ -109,12 +108,19 @@ pub fn start_spend_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, StartSpend<'info>>, 
     amount_usdc_base_units: u64,
 ) -> Result<()> {
-    // TODO: Check next instruction is complete_spend, and that all state is the same
+    let index: usize = load_current_index_checked(
+        &ctx.accounts.instructions.to_account_info()
+    )?.into();
+    let complete_instruction = load_instruction_at_checked(
+        index + 1, 
+        &ctx.accounts.instructions.to_account_info()
+    )?;
+    validate_complete_spend_ix(&ctx, &complete_instruction)?;
 
     // Validate market index and mint
     let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
     check!(
-        &ctx.accounts.spl_mint.key().eq(&drift_market.mint),
+        &ctx.accounts.usdc_mint.key().eq(&drift_market.mint),
         QuartzError::InvalidMint
     );
 
@@ -148,6 +154,37 @@ pub fn start_spend_handler<'info>(
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
     drift_withdraw(cpi_ctx, USDC_MARKET_INDEX, amount_usdc_base_units, false)?;
+
+    Ok(())
+}
+
+pub fn validate_complete_spend_ix<'info>(
+    ctx: &Context<'_, '_, '_, 'info, StartSpend<'info>>,
+    complete_spend: &Instruction
+) -> Result<()> {
+    check!(
+        complete_spend.program_id.eq(&crate::id()),
+        QuartzError::IllegalSpendInstructions
+    );
+
+    check!(
+        complete_spend.data[..8]
+            .eq(&crate::instruction::CompleteSpend::DISCRIMINATOR),
+        QuartzError::IllegalSpendInstructions
+    );
+
+    // Validate state
+    let complete_vault = complete_spend.accounts[0].pubkey;
+    check!(
+        complete_vault.eq(&ctx.accounts.vault.key()),
+        QuartzError::InvalidUserAccounts
+    );
+
+    let complete_owner = complete_spend.accounts[1].pubkey;
+    check!(
+        complete_owner.eq(&ctx.accounts.owner.key()),
+        QuartzError::InvalidUserAccounts
+    );
 
     Ok(())
 }

@@ -155,3 +155,11 @@ export const getInitRentPayer = () => {
     );
     return initRentPayer;
 };
+
+export const getSpendMulePda = (owner: PublicKey) => {
+    const [mule] = web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("spend_mule"), owner.toBuffer()],
+        QUARTZ_PROGRAM_ID
+    );
+    return mule;
+};
