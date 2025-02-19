@@ -1,4 +1,11 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{
+    prelude::*,
+    solana_program::sysvar::instructions::{
+        self,
+        load_current_index_checked, 
+        load_instruction_at_checked
+    }
+};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{
@@ -98,6 +105,10 @@ pub struct CompleteSpend<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
+
+    /// CHECK: Account is safe once address is correct
+    #[account(address = instructions::ID)]
+    pub instructions: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }

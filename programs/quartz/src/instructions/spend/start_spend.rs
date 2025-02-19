@@ -1,4 +1,11 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{
+    prelude::*,
+    solana_program::sysvar::instructions::{
+        self,
+        load_current_index_checked, 
+        load_instruction_at_checked
+    }
+};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{
@@ -91,6 +98,10 @@ pub struct StartSpend<'info> {
 
     pub drift_program: Program<'info, Drift>,
 
+    /// CHECK: Account is safe once address is correct
+    #[account(address = instructions::ID)]
+    pub instructions: UncheckedAccount<'info>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -148,8 +159,15 @@ fn process_spend_limits<'info>(
     let current_slot = Clock::get()?.slot;
 
     // If the timeframe has elapsed, incrememt it and reset spend limit
-    if current_slot >= vault.next_spend_limit_per_timeframe_reset_slot {
-        vault.next_spend_limit_per_timeframe_reset_slot.checked_add(vault.timeframe_in_slots)
+    if current_slot >= vault.next_timeframe_reset_slot {
+        let overflow = current_slot - vault.next_timeframe_reset_slot;
+        let overflow_in_timeframes = overflow / vault.timeframe_in_slots;
+        let slots_to_add = (overflow_in_timeframes + 1)
+            .checked_mul(vault.timeframe_in_slots)
+            .ok_or(QuartzError::MathOverflow)?;
+
+        vault.next_timeframe_reset_slot = vault.next_timeframe_reset_slot
+            .checked_add(slots_to_add)
             .ok_or(QuartzError::MathOverflow)?;
         vault.remaining_spend_limit_per_timeframe = vault.spend_limit_per_timeframe;
     }
@@ -165,7 +183,8 @@ fn process_spend_limits<'info>(
     );
 
     // Adjust remaining spend limit
-    vault.remaining_spend_limit_per_timeframe.checked_sub(amount_usdc_base_units)
+    vault.remaining_spend_limit_per_timeframe = vault.remaining_spend_limit_per_timeframe
+        .checked_sub(amount_usdc_base_units)
         .ok_or(QuartzError::InsufficientTimeframeSpendLimit)?;
 
     Ok(())

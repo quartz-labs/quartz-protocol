@@ -170,7 +170,7 @@ fn init_vault(
         spend_limit_per_transaction,
         spend_limit_per_timeframe,
         remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
-        next_spend_limit_per_timeframe_reset_slot: current_slot + timeframe_in_slots,
+        next_timeframe_reset_slot: current_slot + timeframe_in_slots,
         timeframe_in_slots
     };
     let vault_data_vec = vault_data.try_to_vec()?;

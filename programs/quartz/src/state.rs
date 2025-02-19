@@ -19,9 +19,9 @@ pub struct Vault {
     pub remaining_spend_limit_per_timeframe: u64,
 
     // The next slot the remaining_spend_limit_per_timeframe will be reset at
-    pub next_spend_limit_per_timeframe_reset_slot: u64, 
+    pub next_timeframe_reset_slot: u64, 
 
-    // How much to extend the next_spend_limit_per_timeframe_reset_slot by when it's reached
+    // How much to extend the next_timeframe_reset_slot by when it's reached
     pub timeframe_in_slots: u64 
 }
 
