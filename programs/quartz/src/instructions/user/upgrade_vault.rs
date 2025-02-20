@@ -64,7 +64,7 @@ pub fn upgrade_vault_handler(
         spend_limit_per_transaction,
         spend_limit_per_timeframe,
         remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
-        next_timeframe_reset_slot: current_slot + timeframe_in_slots,
+        next_timeframe_reset_slot: current_slot.checked_add(timeframe_in_slots).ok_or(QuartzError::MathOverflow)?,
         timeframe_in_slots
     };
     let new_vault_vec = new_vault.try_to_vec().unwrap();

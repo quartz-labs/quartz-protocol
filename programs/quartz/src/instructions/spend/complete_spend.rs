@@ -126,9 +126,6 @@ pub fn complete_spend_handler<'info>(
         &ctx.accounts.instructions.to_account_info()
     )?;
     validate_start_spend_ix(&start_instruction)?;
-
-    msg!("Program account exists: {}", ctx.accounts.token_messenger_minter_program.to_account_info().executable);
-    msg!("Program owner: {}", ctx.accounts.token_messenger_minter_program.to_account_info().owner);
     
     // Validate USDC market index and mint
     let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
@@ -158,7 +155,7 @@ pub fn complete_spend_handler<'info>(
     let bridge_cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_messenger_minter_program.to_account_info(), 
         DepositForBurnContext {
-            owner: ctx.accounts.owner.to_account_info(),
+            owner: ctx.accounts.vault.to_account_info(),
             event_rent_payer: ctx.accounts.bridge_rent_payer.to_account_info(),
             sender_authority_pda: ctx.accounts.sender_authority_pda.to_account_info(),
             burn_token_account: ctx.accounts.mule.to_account_info(),

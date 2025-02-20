@@ -195,6 +195,16 @@ fn process_spend_limits<'info>(
 ) -> Result<()> {
     let current_slot = Clock::get()?.slot;
 
+    check!(
+        vault.spend_limit_per_transaction >= amount_usdc_base_units,
+        QuartzError::InsufficientTransactionSpendLimit
+    );
+
+    check!(
+        vault.timeframe_in_slots > 0,
+        QuartzError::InsufficientTimeframeSpendLimit
+    );
+
     // If the timeframe has elapsed, incrememt it and reset spend limit
     if current_slot >= vault.next_timeframe_reset_slot {
         let overflow = current_slot - vault.next_timeframe_reset_slot;
@@ -208,11 +218,6 @@ fn process_spend_limits<'info>(
             .ok_or(QuartzError::MathOverflow)?;
         vault.remaining_spend_limit_per_timeframe = vault.spend_limit_per_timeframe;
     }
-
-    check!(
-        vault.spend_limit_per_transaction >= amount_usdc_base_units,
-        QuartzError::InsufficientTransactionSpendLimit
-    );
 
     check!(
         vault.remaining_spend_limit_per_timeframe >= amount_usdc_base_units,
