@@ -1,0 +1,36 @@
+use anchor_lang::{
+    prelude::*, 
+    Discriminator
+};
+use crate::{
+    config::SPEND_CALLER, 
+    state::Vault
+};
+
+#[derive(Accounts)]
+pub struct ResetSpendLimit<'info> {
+    #[account(
+        constraint = spend_caller.key().eq(&SPEND_CALLER)
+    )]
+    pub spend_caller: Signer<'info>
+}
+
+
+pub fn reset_spend_limit_handler<'info>(
+    ctx: Context<'_, '_, 'info, 'info, ResetSpendLimit<'info>>,
+) -> Result<()> {
+    for account in ctx.remaining_accounts {
+        let data = account.try_borrow_data()?;
+        if data.len() < 8 || data[0..8] != Vault::DISCRIMINATOR || data.len() != Vault::INIT_SPACE {
+            return Err(ErrorCode::AccountNotInitialized.into());
+        }
+
+        let mut vault = Account::<Vault>::try_from(account)?;
+
+        vault.spend_limit_per_transaction = 1000_000_000;
+        vault.spend_limit_per_timeframe = 0;
+        vault.timeframe_in_slots = 400 / (1_000 * 60 * 60 * 24);
+    }
+
+    Ok(())
+}
