@@ -3,16 +3,16 @@ use anchor_lang::{
     Discriminator
 };
 use crate::{
-    config::SPEND_CALLER, 
+    config::RENT_RECLAIMER, 
     state::Vault
 };
 
 #[derive(Accounts)]
 pub struct ResetSpendLimit<'info> {
     #[account(
-        constraint = spend_caller.key().eq(&SPEND_CALLER)
+        constraint = rent_reclaimer.key().eq(&RENT_RECLAIMER)
     )]
-    pub spend_caller: Signer<'info>
+    pub rent_reclaimer: Signer<'info>
 }
 
 
@@ -29,7 +29,9 @@ pub fn reset_spend_limit_handler<'info>(
 
         vault.spend_limit_per_transaction = 1000_000_000;
         vault.spend_limit_per_timeframe = 0;
-        vault.timeframe_in_slots = 400 / (1_000 * 60 * 60 * 24);
+        vault.timeframe_in_slots = (1_000 * 60 * 60 * 24) / 400;
+
+        vault.serialize(&mut *account.try_borrow_mut_data()?)?;
     }
 
     Ok(())
