@@ -36,12 +36,6 @@ pub mod quartz {
         )
     }
 
-    pub fn reset_spend_limit<'info>(
-        ctx: Context<'_, '_, 'info, 'info, ResetSpendLimit<'info>>,
-    ) -> Result<()> {
-        reset_spend_limit_handler(ctx)
-    }
-
     // User
 
     pub fn init_user(
