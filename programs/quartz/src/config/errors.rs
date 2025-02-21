@@ -68,4 +68,6 @@ pub enum QuartzError {
     InsufficientTransactionSpendLimit,
     #[msg("start_spend instruction must be followed by complete_spend instruction")]
     IllegalSpendInstructions,
+    #[msg("Current timestamp cannot be negative")]
+    InvalidTimestamp,
 }

@@ -31,7 +31,8 @@ pub fn upgrade_vault_handler(
     ctx: Context<UpgradeVault>,
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
-    timeframe_in_slots: u64
+    timeframe_in_seconds: u64,
+    next_timeframe_reset_timestamp: u64
 ) -> Result<()> {
     // Get current Vault data
     let existing_vault = &ctx.accounts.vault;
@@ -57,15 +58,14 @@ pub fn upgrade_vault_handler(
     );
 
     // Get new vault data and required size
-    let current_slot = Clock::get()?.slot;
     let new_vault = Vault {
         owner: ctx.accounts.owner.key(),
         bump: vault_bump,
         spend_limit_per_transaction,
         spend_limit_per_timeframe,
         remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
-        next_timeframe_reset_slot: current_slot.checked_add(timeframe_in_slots).ok_or(QuartzError::MathOverflow)?,
-        timeframe_in_slots
+        next_timeframe_reset_timestamp,
+        timeframe_in_seconds
     };
     let new_vault_vec = new_vault.try_to_vec().unwrap();
 

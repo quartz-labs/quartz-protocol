@@ -19,11 +19,12 @@ pub fn adjust_spend_limits_handler(
     ctx: Context<AdjustSpendLimits>,
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
-    timeframe_in_slots: u64
+    timeframe_in_seconds: u64,
+    next_timeframe_reset_timestamp: u64
 ) -> Result<()> {
     let spend_limit_per_timeframe_already_used = ctx.accounts.vault.spend_limit_per_timeframe
         .checked_sub(ctx.accounts.vault.remaining_spend_limit_per_timeframe)
-        .ok_or(QuartzError::MathOverflow)?;
+        .unwrap_or(0);
 
     ctx.accounts.vault.remaining_spend_limit_per_timeframe = spend_limit_per_timeframe
         .checked_sub(spend_limit_per_timeframe_already_used)
@@ -31,10 +32,8 @@ pub fn adjust_spend_limits_handler(
     
     ctx.accounts.vault.spend_limit_per_transaction = spend_limit_per_transaction;
     ctx.accounts.vault.spend_limit_per_timeframe = spend_limit_per_timeframe;
-    ctx.accounts.vault.timeframe_in_slots = timeframe_in_slots;
-
-    // TODO: Make this calendar months
-    ctx.accounts.vault.next_timeframe_reset_slot = &Clock::get()?.slot + timeframe_in_slots;
+    ctx.accounts.vault.timeframe_in_seconds = timeframe_in_seconds;
+    ctx.accounts.vault.next_timeframe_reset_timestamp = next_timeframe_reset_timestamp;
 
     Ok(())
 }

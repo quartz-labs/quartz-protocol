@@ -193,7 +193,12 @@ fn process_spend_limits<'info>(
     vault: &mut Account<'info, Vault>,
     amount_usdc_base_units: u64
 ) -> Result<()> {
-    let current_slot = Clock::get()?.slot;
+    let current_timestamp_raw = Clock::get()?.unix_timestamp;
+    check!(
+        current_timestamp_raw > 0,
+        QuartzError::InvalidTimestamp
+    );
+    let current_timestamp = current_timestamp_raw as u64;
 
     check!(
         vault.spend_limit_per_transaction >= amount_usdc_base_units,
@@ -201,20 +206,20 @@ fn process_spend_limits<'info>(
     );
 
     check!(
-        vault.timeframe_in_slots > 0,
+        vault.timeframe_in_seconds > 0,
         QuartzError::InsufficientTimeframeSpendLimit
     );
 
     // If the timeframe has elapsed, incrememt it and reset spend limit
-    if current_slot >= vault.next_timeframe_reset_slot {
-        let overflow = current_slot - vault.next_timeframe_reset_slot;
-        let overflow_in_timeframes = overflow / vault.timeframe_in_slots;
-        let slots_to_add = (overflow_in_timeframes + 1)
-            .checked_mul(vault.timeframe_in_slots)
+    if current_timestamp >= vault.next_timeframe_reset_timestamp {
+        let overflow = current_timestamp - vault.next_timeframe_reset_timestamp;
+        let overflow_in_timeframes = overflow / vault.timeframe_in_seconds;
+        let seconds_to_add = (overflow_in_timeframes + 1)
+            .checked_mul(vault.timeframe_in_seconds)
             .ok_or(QuartzError::MathOverflow)?;
 
-        vault.next_timeframe_reset_slot = vault.next_timeframe_reset_slot
-            .checked_add(slots_to_add)
+        vault.next_timeframe_reset_timestamp = vault.next_timeframe_reset_timestamp
+            .checked_add(seconds_to_add)
             .ok_or(QuartzError::MathOverflow)?;
         vault.remaining_spend_limit_per_timeframe = vault.spend_limit_per_timeframe;
     }

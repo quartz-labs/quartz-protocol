@@ -43,14 +43,16 @@ pub mod quartz {
         requires_marginfi_account: bool,
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
-        timeframe_in_slots: u64
+        timeframe_in_seconds: u64,
+        next_timeframe_reset_timestamp: u64
     ) -> Result<()> {
         init_user_handler(
             ctx, 
             requires_marginfi_account, 
             spend_limit_per_transaction, 
             spend_limit_per_timeframe, 
-            timeframe_in_slots
+            timeframe_in_seconds,
+            next_timeframe_reset_timestamp
         )
     }
 
@@ -62,13 +64,15 @@ pub mod quartz {
         ctx: Context<UpgradeVault>,
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
-        timeframe_in_slots: u64
+        timeframe_in_seconds: u64,
+        next_timeframe_reset_timestamp: u64
     ) -> Result<()> {
         upgrade_vault_handler(
             ctx, 
             spend_limit_per_transaction, 
             spend_limit_per_timeframe, 
-            timeframe_in_slots
+            timeframe_in_seconds,
+            next_timeframe_reset_timestamp
         )
     }
 
@@ -131,13 +135,15 @@ pub mod quartz {
         ctx: Context<'_, '_, 'info, 'info, AdjustSpendLimits<'info>>,
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
-        timeframe_in_slots: u64
+        timeframe_in_seconds: u64,
+        next_timeframe_reset_timestamp: u64
     ) -> Result<()> {
         adjust_spend_limits_handler(
             ctx, 
             spend_limit_per_transaction, 
             spend_limit_per_timeframe, 
-            timeframe_in_slots
+            timeframe_in_seconds,
+            next_timeframe_reset_timestamp
         )
     }
 
