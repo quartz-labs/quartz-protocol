@@ -4,7 +4,7 @@ use solana_program::{
 };
 use crate::state::DriftMarket;
 
-pub const DRIFT_MARKETS: [DriftMarket; 6] = [
+pub const DRIFT_MARKETS: [DriftMarket; 8] = [
     DriftMarket { // WSOL
         market_index: 1,
         mint: pubkey!("So11111111111111111111111111111111111111112"),
@@ -40,5 +40,17 @@ pub const DRIFT_MARKETS: [DriftMarket; 6] = [
         mint: pubkey!("3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh"),
         pyth_feed: "0xc9d8b075a5c69303365ae23633d4e085199bf5c520a3b90fed1322a0342ffc33",
         base_units_per_token: 100_000_000
+    },
+    DriftMarket { // JitoSOL
+        market_index: 6,
+        mint: pubkey!("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"),
+        pyth_feed: "0x67be9f519b95cf24338801051f9a808eff0a578ccb388db73b7f6fe1de019ffb",
+        base_units_per_token: 1_000_000_000
+    },
+    DriftMarket { // JLP
+        market_index: 19,
+        mint: pubkey!("27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4"),
+        pyth_feed: "0xc811abc82b4bad1f9bd711a2773ccaa935b03ecef974236942cec5e0eb845a3a",
+        base_units_per_token: 1_000_000
     }
 ];

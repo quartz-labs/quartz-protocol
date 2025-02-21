@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::{config::QuartzError, state::Vault};
+use crate::state::Vault;
 
 #[derive(Accounts)]
 pub struct AdjustSpendLimits<'info> {
@@ -28,7 +28,7 @@ pub fn adjust_spend_limits_handler(
 
     ctx.accounts.vault.remaining_spend_limit_per_timeframe = spend_limit_per_timeframe
         .checked_sub(spend_limit_per_timeframe_already_used)
-        .ok_or(QuartzError::MathOverflow)?;
+        .unwrap_or(0);
     
     ctx.accounts.vault.spend_limit_per_transaction = spend_limit_per_transaction;
     ctx.accounts.vault.spend_limit_per_timeframe = spend_limit_per_timeframe;
