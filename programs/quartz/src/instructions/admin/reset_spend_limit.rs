@@ -1,7 +1,4 @@
-use anchor_lang::{
-    prelude::*, 
-    Discriminator
-};
+use anchor_lang::prelude::*;
 use crate::{
     config::RENT_RECLAIMER, 
     state::Vault
@@ -12,27 +9,54 @@ pub struct ResetSpendLimit<'info> {
     #[account(
         constraint = rent_reclaimer.key().eq(&RENT_RECLAIMER)
     )]
-    pub rent_reclaimer: Signer<'info>
+    pub rent_reclaimer: Signer<'info>,
+
+    #[account(mut)]
+    pub vault1: Account<'info, Vault>,
+
+    #[account(mut)]
+    pub vault2: Account<'info, Vault>,
+
+    #[account(mut)]
+    pub vault3: Account<'info, Vault>,
+
+    #[account(mut)]
+    pub vault4: Account<'info, Vault>,
+
+    #[account(mut)]
+    pub vault5: Account<'info, Vault>,
+
+    #[account(mut)]
+    pub vault6: Account<'info, Vault>,    
 }
 
 
 pub fn reset_spend_limit_handler<'info>(
-    ctx: Context<'_, '_, 'info, 'info, ResetSpendLimit<'info>>,
+    ctx: Context<ResetSpendLimit<'info>>,
 ) -> Result<()> {
-    for account in ctx.remaining_accounts {
-        let data = account.try_borrow_data()?;
-        if data.len() < 8 || data[0..8] != Vault::DISCRIMINATOR || data.len() != Vault::INIT_SPACE {
-            return Err(ErrorCode::AccountNotInitialized.into());
-        }
+    ctx.accounts.vault1.spend_limit_per_transaction = 1000_000_000;
+    ctx.accounts.vault1.spend_limit_per_timeframe = 0;
+    ctx.accounts.vault1.timeframe_in_slots = (1_000 * 60 * 60 * 24) / 400;
 
-        let mut vault = Account::<Vault>::try_from(account)?;
+    ctx.accounts.vault2.spend_limit_per_transaction = 1000_000_000;
+    ctx.accounts.vault2.spend_limit_per_timeframe = 0;
+    ctx.accounts.vault2.timeframe_in_slots = (1_000 * 60 * 60 * 24) / 400;
 
-        vault.spend_limit_per_transaction = 1000_000_000;
-        vault.spend_limit_per_timeframe = 0;
-        vault.timeframe_in_slots = (1_000 * 60 * 60 * 24) / 400;
+    ctx.accounts.vault3.spend_limit_per_transaction = 1000_000_000;
+    ctx.accounts.vault3.spend_limit_per_timeframe = 0;
+    ctx.accounts.vault3.timeframe_in_slots = (1_000 * 60 * 60 * 24) / 400;
 
-        vault.serialize(&mut *account.try_borrow_mut_data()?)?;
-    }
+    ctx.accounts.vault4.spend_limit_per_transaction = 1000_000_000;
+    ctx.accounts.vault4.spend_limit_per_timeframe = 0;
+    ctx.accounts.vault4.timeframe_in_slots = (1_000 * 60 * 60 * 24) / 400;
+
+    ctx.accounts.vault5.spend_limit_per_transaction = 1000_000_000;
+    ctx.accounts.vault5.spend_limit_per_timeframe = 0;
+    ctx.accounts.vault5.timeframe_in_slots = (1_000 * 60 * 60 * 24) / 400;
+
+    ctx.accounts.vault6.spend_limit_per_transaction = 1000_000_000;
+    ctx.accounts.vault6.spend_limit_per_timeframe = 0;
+    ctx.accounts.vault6.timeframe_in_slots = (1_000 * 60 * 60 * 24) / 400;
 
     Ok(())
 }
