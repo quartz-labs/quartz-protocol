@@ -106,16 +106,6 @@ pub mod quartz {
         )
     }
 
-    pub fn top_up_card<'info>(
-        ctx: Context<'_, '_, '_, 'info, TopUpCard<'info>>,
-        amount_usdc_base_units: u64,
-    ) -> Result<()> {
-        top_up_card_handler(
-            ctx, 
-            amount_usdc_base_units
-        )
-    }
-
     // Spend
 
     pub fn start_spend<'info>(

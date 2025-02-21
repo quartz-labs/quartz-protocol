@@ -7,7 +7,8 @@ import {
   PublicKey,
   SystemProgram,
   Connection,
-  LAMPORTS_PER_SOL
+  LAMPORTS_PER_SOL,
+  SYSVAR_RENT_PUBKEY
 } from "@solana/web3.js";
 import { IDL as QuartzIDL, Quartz } from "../../target/types/quartz";
 import {
@@ -27,14 +28,15 @@ import {
   USDC_MINT, 
   WSOL_MINT, 
   DRIFT_PROGRAM_ID,
-  QUARTZ_PROGRAM_ID
+  QUARTZ_PROGRAM_ID,
+  MARGINFI_PROGRAM_ID,
+  MARGINFI_GROUP_1
 } from "../config/constants";
 import config from "../config/config";
 import { initUser, makeWrapSolIxs } from "../utils/instructions";
-import { initDriftAccount } from "../utils/instructions";
-import { getDriftSpotMarketVault, getDriftUserStats, getDriftState, getDriftUser, getVaultPda, getVaultSplPda, toRemainingAccount, getDriftSpotMarket } from "../utils/accounts";
+import { getDriftSpotMarketVault, getDriftUserStats, getDriftState, getDriftUser, getVaultPda, getVaultSplPda, toRemainingAccount, getDriftSpotMarket, getInitRentPayer } from "../utils/accounts";
 
-const TIMEOUT = 10_000;
+const TIMEOUT = 15_000;
 describe("deposit, withdraw", () => {
   let provider: BankrunProvider;
   let user: Keypair;
@@ -53,6 +55,7 @@ describe("deposit, withdraw", () => {
   const usdcSpotMarketVault = getDriftSpotMarketVault(DRIFT_MARKET_INDEX_USDC);
   const solSpotMarket = getDriftSpotMarket(DRIFT_MARKET_INDEX_SOL);
   const usdcSpotMarket = getDriftSpotMarket(DRIFT_MARKET_INDEX_USDC);
+  const initRentPayer = getInitRentPayer();
 
   beforeEach(async () => {
     user = Keypair.generate();
@@ -73,10 +76,15 @@ describe("deposit, withdraw", () => {
     const solMintAccountInfo = await connection.getAccountInfo(WSOL_MINT);
     const solSpotMarketVaultAccountInfo = await connection.getAccountInfo(solSpotMarketVault);
     const usdcSpotMarketVaultAccountInfo = await connection.getAccountInfo(usdcSpotMarketVault);
+    const initRentPayerAccountInfo = await connection.getAccountInfo(initRentPayer);
+    const marginfiGroupAccountInfo = await connection.getAccountInfo(MARGINFI_GROUP_1);
 
     context = await startAnchor(
       "./",
-      [{ name: "drift", programId: DRIFT_PROGRAM_ID }],
+      [
+        { name: "drift", programId: DRIFT_PROGRAM_ID },
+        { name: "marginfi", programId: MARGINFI_PROGRAM_ID }
+      ],
       [
         {
           address: user.publicKey,
@@ -126,6 +134,14 @@ describe("deposit, withdraw", () => {
         {
           address: WSOL_MINT,
           info: solMintAccountInfo,
+        },
+        {
+          address: initRentPayer,
+          info: initRentPayerAccountInfo,
+        },
+        {
+          address: MARGINFI_GROUP_1,
+          info: marginfiGroupAccountInfo,
         }
       ]
     );
@@ -134,21 +150,33 @@ describe("deposit, withdraw", () => {
     provider = new BankrunProvider(context);
     quartzProgram = new Program<Quartz>(QuartzIDL, QUARTZ_PROGRAM_ID, provider);
 
-    await initUser(quartzProgram, banksClient, {
-      vault: vault,
-      owner: user.publicKey,
-      systemProgram: SystemProgram.programId,
-    });
-    await initDriftAccount(quartzProgram, banksClient, {
-      vault: vault,
-      owner: user.publicKey,
-      driftUser: driftUser,
-      driftUserStats: driftUserStats,
-      driftState: driftState,
-      driftProgram: DRIFT_PROGRAM_ID,
-      rent: web3.SYSVAR_RENT_PUBKEY,
-      systemProgram: SystemProgram.programId,
-    });
+    const marginfiAccount = Keypair.generate();
+    await initUser(
+      quartzProgram, 
+      banksClient,
+      [user, marginfiAccount],
+      {
+        requiresMarginfiAccount: true,
+        spendLimitPerTransaction: 1000_000_000,
+        spendLimitPerTimeframe: 1000_000_000,
+        nextTimeframeResetTimestamp: 1000_000_000,
+        timeframeInSeconds: 1000_000_000,
+      },
+      {
+        vault: vault,
+        owner: user.publicKey,
+        initRentPayer: initRentPayer,
+        driftUser: driftUser,
+        driftUserStats: driftUserStats,
+        driftState: driftState,
+        driftProgram: DRIFT_PROGRAM_ID,
+        marginfiGroup: MARGINFI_GROUP_1,
+        marginfiAccount: marginfiAccount.publicKey,
+        marginfiProgram: MARGINFI_PROGRAM_ID,
+        rent: SYSVAR_RENT_PUBKEY,
+        systemProgram: SystemProgram.programId,
+      }
+    );
   }, TIMEOUT);
 
   test("Should deposit lamports", async () => {

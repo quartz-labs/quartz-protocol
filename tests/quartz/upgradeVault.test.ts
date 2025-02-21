@@ -6,7 +6,7 @@ import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { IDL as QuartzIDL, Quartz } from "../../target/types/quartz";
 import { getInitRentPayer, getVaultPda } from "../utils/accounts";
 import { upgradeVault } from "../utils/instructions";
-import { QUARTZ_PROGRAM_ID } from "../config/constants";
+import { DRIFT_PROGRAM_ID, MARGINFI_PROGRAM_ID, QUARTZ_PROGRAM_ID } from "../config/constants";
 import config from "../config/config";
 
 const LOOKUP_TABLE = new PublicKey("F39jBi6T9YtnqVFaLYTFdPGX7vKoeeChZPYCuEDLA4mB");
@@ -34,7 +34,10 @@ describe("upgrade_vault", () => {
 
         context = await startAnchor(
             "./",
-            [],
+            [
+                { name: "drift", programId: DRIFT_PROGRAM_ID },
+                { name: "marginfi", programId: MARGINFI_PROGRAM_ID }
+            ],
             [
                 {
                     address: user.publicKey,
@@ -79,8 +82,8 @@ describe("upgrade_vault", () => {
         expect(oldVaultAccount.spendLimitPerTransaction.toNumber()).toBe(0);
         expect(oldVaultAccount.spendLimitPerTimeframe.toNumber()).toBe(0);
         expect(oldVaultAccount.remainingSpendLimitPerTimeframe.toNumber()).toBe(0);
-        expect(oldVaultAccount.nextSpendLimitPerTimeframeResetSlot.toNumber()).toBe(0);
-        expect(oldVaultAccount.extendSpendLimitPerTimeframeResetSlotAmount.toNumber()).toBe(0);
+        expect(oldVaultAccount.nextTimeframeResetTimestamp.toNumber()).toBe(0);
+        expect(oldVaultAccount.timeframeInSeconds.toNumber()).toBe(0);
 
         const meta = await upgradeVault(
             quartzProgram, 
@@ -88,7 +91,8 @@ describe("upgrade_vault", () => {
             {
                 spendLimitPerTransaction: 1000_000_000,
                 spendLimitPerTimeframe: 1000_000_000,
-                extendSpendLimitPerTimeframeResetSlotAmount: 1000_000_000,
+                nextTimeframeResetTimestamp: 1000_000_000,
+                timeframeInSeconds: 1000_000_000,
             },
             {
                 vault: OLD_VAULT,
@@ -107,8 +111,8 @@ describe("upgrade_vault", () => {
         expect(updatedVaultAccount.spendLimitPerTransaction.toNumber()).toBe(1000_000_000);
         expect(updatedVaultAccount.spendLimitPerTimeframe.toNumber()).toBe(1000_000_000);
         expect(updatedVaultAccount.remainingSpendLimitPerTimeframe.toNumber()).toBe(1000_000_000);
-        expect(updatedVaultAccount.nextSpendLimitPerTimeframeResetSlot.toNumber()).toBe(1000_000_001); // Add 1 for current slot
-        expect(updatedVaultAccount.extendSpendLimitPerTimeframeResetSlotAmount.toNumber()).toBe(1000_000_000);
+        expect(updatedVaultAccount.nextTimeframeResetTimestamp.toNumber()).toBe(1000_000_001); // Add 1 for current slot
+        expect(updatedVaultAccount.timeframeInSeconds.toNumber()).toBe(1000_000_000);
         expect(updatedVaultAccount.owner.toBase58()).toBe(OLD_VAULT_OWNER.toBase58());
     }, TIMEOUT);
 

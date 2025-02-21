@@ -12,7 +12,8 @@ export interface InitUserParams {
     requiresMarginfiAccount: boolean;
     spendLimitPerTransaction: number;
     spendLimitPerTimeframe: number;
-    extendSpendLimitPerTimeframeResetSlotAmount: number;
+    nextTimeframeResetTimestamp: number;
+    timeframeInSeconds: number;
 }
 
 export interface InitUserAccounts {
@@ -42,7 +43,8 @@ export const initUser = async (
             params.requiresMarginfiAccount, 
             new BN(params.spendLimitPerTransaction), 
             new BN(params.spendLimitPerTimeframe), 
-            new BN(params.extendSpendLimitPerTimeframeResetSlotAmount)
+            new BN(params.timeframeInSeconds),
+            new BN(params.nextTimeframeResetTimestamp),
         )
         .accounts(accounts)
         .instruction();
@@ -86,7 +88,8 @@ export const closeUser = async (
 export interface UpgradeVaultParams {
     spendLimitPerTransaction: number;
     spendLimitPerTimeframe: number;
-    extendSpendLimitPerTimeframeResetSlotAmount: number;
+    nextTimeframeResetTimestamp: number;
+    timeframeInSeconds: number;
 }
 
 export interface UpgradeVaultAccounts {
@@ -106,7 +109,8 @@ export const upgradeVault = async (
         .upgradeVault(
             new BN(params.spendLimitPerTransaction), 
             new BN(params.spendLimitPerTimeframe), 
-            new BN(params.extendSpendLimitPerTimeframeResetSlotAmount)
+            new BN(params.timeframeInSeconds),
+            new BN(params.nextTimeframeResetTimestamp)
         )
         .accounts(accounts)
         .instruction();

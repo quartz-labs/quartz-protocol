@@ -31,7 +31,8 @@ import {
   WSOL_MINT, 
   DRIFT_PROGRAM_ID,
   QUARTZ_PROGRAM_ID,
-  QUARTZ_ADDRESS_TABLE
+  QUARTZ_ADDRESS_TABLE,
+  MARGINFI_PROGRAM_ID
 } from "../config/constants";
 import config from "../config/config";
 import { deposit, initUser, makeWrapSolIxs, withdraw, wrapSol } from "../utils/instructions";
@@ -86,7 +87,10 @@ describe("collateral repay", () => {
 
     context = await startAnchor(
       "./",
-      [{ name: "drift", programId: DRIFT_PROGRAM_ID }],
+      [
+        { name: "drift", programId: DRIFT_PROGRAM_ID },
+        { name: "marginfi", programId: MARGINFI_PROGRAM_ID }
+      ],
       [
         {
           address: user.publicKey,

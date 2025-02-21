@@ -212,12 +212,13 @@ describe("top up card", () => {
     await initUser(
       quartzProgram, 
       banksClient,
-      [user],
+      [user, marginfiAccount],
       {
         requiresMarginfiAccount: true,
         spendLimitPerTransaction: 1000_000_000,
         spendLimitPerTimeframe: 1000_000_000,
-        extendSpendLimitPerTimeframeResetSlotAmount: 1000_000_000,
+        nextTimeframeResetTimestamp: 1000_000_000,
+        timeframeInSeconds: 1000_000_000,
       },
       {
         vault: vault,

@@ -11,7 +11,7 @@ import config from "../config/config";
 import { hash } from "@coral-xyz/anchor/dist/cjs/utils/sha256";
 
 
-const TIMEOUT = 10_000;
+const TIMEOUT = 15_000;
 describe("init_user", () => {
   let provider: BankrunProvider;
   let user: Keypair;
@@ -86,7 +86,8 @@ describe("init_user", () => {
         requiresMarginfiAccount: true,
         spendLimitPerTransaction: 1000_000_000,
         spendLimitPerTimeframe: 1000_000_000,
-        extendSpendLimitPerTimeframeResetSlotAmount: 1000_000_000,
+        nextTimeframeResetTimestamp: 1000_000_000,
+        timeframeInSeconds: 1000_000_000,
       },
       {
         vault: vaultPda,
@@ -202,7 +203,8 @@ describe("close_user", () => {
         requiresMarginfiAccount: true,
         spendLimitPerTransaction: 1000_000_000,
         spendLimitPerTimeframe: 1000_000_000,
-        extendSpendLimitPerTimeframeResetSlotAmount: 1000_000_000,
+        nextTimeframeResetTimestamp: 1000_000_000,
+        timeframeInSeconds: 1000_000_000,
       },
       {
         vault: vaultPda,
