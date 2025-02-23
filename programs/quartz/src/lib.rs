@@ -40,7 +40,6 @@ pub mod quartz {
 
     pub fn init_user(
         ctx: Context<InitUser>, 
-        requires_marginfi_account: bool,
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
         timeframe_in_seconds: u64,
@@ -48,7 +47,6 @@ pub mod quartz {
     ) -> Result<()> {
         init_user_handler(
             ctx, 
-            requires_marginfi_account, 
             spend_limit_per_transaction, 
             spend_limit_per_timeframe, 
             timeframe_in_seconds,

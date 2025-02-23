@@ -142,8 +142,8 @@ pub fn deposit_collateral_repay_handler<'info>(
     )?;
     validate_start_collateral_repay_ix(&start_instruction)?;
     
-    // Validate auto repay threshold if the owner isn't the caller
-    if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
+    // Validate auto repay threshold if owner hasn't signed
+    if !ctx.accounts.owner.is_signer {
         let withdraw_instruction = load_instruction_at_checked(
             index + 1, 
             &ctx.accounts.instructions.to_account_info()

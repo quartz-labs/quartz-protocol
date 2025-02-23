@@ -1,6 +1,6 @@
-use crate::{check, config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE, MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR, MARGINFI_GROUP_1, MARGINFI_PROGRAM_ID}, state::Vault};
+use crate::{check, config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE}, state::Vault};
 use anchor_lang::{prelude::*, system_program::{create_account, CreateAccount}, Discriminator};
-use solana_program::program::{invoke, invoke_signed};
+use solana_program::program::invoke;
 use drift::{
     program::Drift,
     cpi::{
@@ -52,21 +52,6 @@ pub struct InitUser<'info> {
 
     pub drift_program: Program<'info, Drift>,
 
-    /// CHECK: Safe once address is correct
-    #[account(
-        constraint = marginfi_group.key().eq(&MARGINFI_GROUP_1)
-    )]
-    pub marginfi_group: UncheckedAccount<'info>,
-
-    #[account(mut)]
-    pub marginfi_account: Signer<'info>,
-
-    /// CHECK: Safe once address is correct
-    #[account(
-        constraint = marginfi_program.key().eq(&MARGINFI_PROGRAM_ID)
-    )]
-    pub marginfi_program: UncheckedAccount<'info>,
-
     pub rent: Sysvar<'info, Rent>,
 
     pub system_program: Program<'info, System>,
@@ -74,7 +59,6 @@ pub struct InitUser<'info> {
 
 pub fn init_user_handler(
     ctx: Context<InitUser>,
-    requires_marginfi_account: bool,
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
     timeframe_in_seconds: u64,
@@ -93,11 +77,7 @@ pub fn init_user_handler(
         b"init_rent_payer".as_ref(),
         &[init_rent_payer_bump]
     ];
-
-    let init_rent_payer_signer_seeds = &[
-        &init_rent_payer_seeds[..]
-    ];
-    let both_signer_seeds = &[
+    let signer_seeds = &[
         &init_rent_payer_seeds[..],
         &seeds_vault[..]
     ];
@@ -124,18 +104,14 @@ pub fn init_user_handler(
 
     init_vault(
         &ctx, 
-        both_signer_seeds, 
+        signer_seeds, 
         spend_limit_per_transaction, 
         spend_limit_per_timeframe, 
         timeframe_in_seconds,
         next_timeframe_reset_timestamp
     )?;
 
-    init_drift_accounts(&ctx, both_signer_seeds)?;
-
-    if requires_marginfi_account {
-        init_marginfi_account(&ctx, init_rent_payer_signer_seeds)?;
-    }
+    init_drift_accounts(&ctx, signer_seeds)?;
 
     Ok(())
 }
@@ -216,37 +192,6 @@ fn init_drift_accounts(
         both_signer_seeds
     );
     initialize_user_drift(create_user_cpi_context, 0, [0; 32])?;
-
-    Ok(())
-}
-
-fn init_marginfi_account(
-    ctx: &Context<InitUser>,
-    init_rent_payer_signer_seeds: &[&[&[u8]]]
-) -> Result<()> {
-    let ix = solana_program::instruction::Instruction {
-        program_id: ctx.accounts.marginfi_program.key(),
-        accounts: vec![
-            AccountMeta::new_readonly(ctx.accounts.marginfi_group.key(), false),
-            AccountMeta::new(ctx.accounts.marginfi_account.key(), true),
-            AccountMeta::new(ctx.accounts.owner.key(), true),
-            AccountMeta::new(ctx.accounts.init_rent_payer.key(), true),
-            AccountMeta::new_readonly(ctx.accounts.system_program.key(), false),
-        ],
-        data: MARGINFI_ACCOUNT_INITIALIZE_DISCRIMINATOR.to_vec(),
-    };
-
-    invoke_signed(
-        &ix,
-        &[
-            ctx.accounts.marginfi_group.to_account_info(),
-            ctx.accounts.marginfi_account.to_account_info(),
-            ctx.accounts.owner.to_account_info(),
-            ctx.accounts.init_rent_payer.to_account_info(),
-            ctx.accounts.system_program.to_account_info(),
-        ],
-        init_rent_payer_signer_seeds
-    )?;
 
     Ok(())
 }

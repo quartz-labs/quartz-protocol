@@ -238,8 +238,8 @@ pub fn withdraw_collateral_repay_handler<'info>(
     );
     close_account(cpi_ctx_close)?;
 
-    // Validate auto repay threshold if the owner isn't the caller
-    if !ctx.accounts.owner.key().eq(&ctx.accounts.caller.key()) {
+    // Validate auto repay threshold if owner hasn't signed
+    if !ctx.accounts.owner.is_signer {
         validate_health(
             &ctx, 
             deposit_market_index, 
