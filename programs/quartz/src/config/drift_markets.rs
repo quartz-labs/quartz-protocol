@@ -53,7 +53,7 @@ pub const DRIFT_MARKETS: [DriftMarket; 9] = [
         pyth_feed: "0xc811abc82b4bad1f9bd711a2773ccaa935b03ecef974236942cec5e0eb845a3a",
         base_units_per_token: 1_000_000
     },
-    DriftMarket { // MetaDAO
+    DriftMarket { // META
         market_index: 29,
         mint: pubkey!("METADDFL6wWMWEoKTFJwcThTbUmtarRJZjRpzUvkxhr"),
         pyth_feed: "0xe379d8d3a1a44952474f057bdfe6e902a97f093b2872c152dcf04f612e3e3be9",
