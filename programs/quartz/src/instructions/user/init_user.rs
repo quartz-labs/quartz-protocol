@@ -1,4 +1,4 @@
-use crate::{check, config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE}, state::Vault};
+use crate::{check, config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE}, events::{CommonFields, SpendLimitUpdatedEvent}, state::Vault};
 use anchor_lang::{prelude::*, system_program::{create_account, CreateAccount}, Discriminator};
 use solana_program::program::invoke;
 use drift::{
@@ -13,6 +13,7 @@ use drift::{
 };
 use solana_program::system_instruction;
 
+#[event_cpi]
 #[derive(Accounts)]
 pub struct InitUser<'info> {
     /// CHECK: Safe once address is correct
@@ -157,6 +158,15 @@ fn init_vault(
     new_account_data[..ANCHOR_DISCRIMINATOR].copy_from_slice(&Vault::DISCRIMINATOR);
     new_account_data[ANCHOR_DISCRIMINATOR..].copy_from_slice(&vault_data_vec[..]);
 
+    let clock = Clock::get()?;
+    emit_cpi!(SpendLimitUpdatedEvent {
+        common_fields: CommonFields::new(&clock, ctx.accounts.owner.key()),
+        spend_limit_per_transaction,
+        spend_limit_per_timeframe,
+        remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
+        timeframe_in_seconds,
+        next_timeframe_reset_timestamp
+    });
     Ok(())
 }
 

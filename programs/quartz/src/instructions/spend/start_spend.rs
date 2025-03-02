@@ -25,9 +25,10 @@ use drift::{
 };
 use solana_program::instruction::Instruction;
 use crate::{
-    check, config::{QuartzError, SPEND_CALLER, USDC_MARKET_INDEX}, state::Vault, utils::get_drift_market
+    check, config::{QuartzError, SPEND_CALLER, USDC_MARKET_INDEX}, events::{CommonFields, SpendLimitUpdatedEvent}, state::Vault, utils::get_drift_market
 };
 
+#[event_cpi]
 #[derive(Accounts)]
 pub struct StartSpend<'info> {
     #[account(
@@ -101,11 +102,11 @@ pub struct StartSpend<'info> {
     #[account(address = instructions::ID)]
     pub instructions: UncheckedAccount<'info>,
 
-    pub system_program: Program<'info, System>,
+    pub system_program: Program<'info, System>
 }
 
 pub fn start_spend_handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, StartSpend<'info>>, 
+    mut ctx: Context<'_, '_, '_, 'info, StartSpend<'info>>, 
     amount_usdc_base_units: u64,
 ) -> Result<()> {
     let index: usize = load_current_index_checked(
@@ -124,7 +125,7 @@ pub fn start_spend_handler<'info>(
         QuartzError::InvalidMint
     );
 
-    process_spend_limits(&mut ctx.accounts.vault, amount_usdc_base_units)?;
+    process_spend_limits(&mut ctx, amount_usdc_base_units)?;
     
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
@@ -190,7 +191,7 @@ pub fn validate_complete_spend_ix<'info>(
 }
 
 fn process_spend_limits<'info>(
-    vault: &mut Account<'info, Vault>,
+    ctx: &mut Context<'_, '_, '_, 'info, StartSpend<'info>>,
     amount_usdc_base_units: u64
 ) -> Result<()> {
     let current_timestamp_raw = Clock::get()?.unix_timestamp;
@@ -201,38 +202,48 @@ fn process_spend_limits<'info>(
     let current_timestamp = current_timestamp_raw as u64;
 
     check!(
-        vault.spend_limit_per_transaction >= amount_usdc_base_units,
+        ctx.accounts.vault.spend_limit_per_transaction >= amount_usdc_base_units,
         QuartzError::InsufficientTransactionSpendLimit
     );
 
     check!(
-        vault.timeframe_in_seconds > 0,
+        ctx.accounts.vault.timeframe_in_seconds > 0,
         QuartzError::InsufficientTimeframeSpendLimit
     );
 
     // If the timeframe has elapsed, incrememt it and reset spend limit
-    if current_timestamp >= vault.next_timeframe_reset_timestamp {
-        let overflow = current_timestamp - vault.next_timeframe_reset_timestamp;
-        let overflow_in_timeframes = overflow / vault.timeframe_in_seconds;
+    if current_timestamp >= ctx.accounts.vault.next_timeframe_reset_timestamp {
+        let overflow = current_timestamp - ctx.accounts.vault.next_timeframe_reset_timestamp;
+        let overflow_in_timeframes = overflow / ctx.accounts.vault.timeframe_in_seconds;
         let seconds_to_add = (overflow_in_timeframes + 1)
-            .checked_mul(vault.timeframe_in_seconds)
+            .checked_mul(ctx.accounts.vault.timeframe_in_seconds)
             .ok_or(QuartzError::MathOverflow)?;
 
-        vault.next_timeframe_reset_timestamp = vault.next_timeframe_reset_timestamp
+        ctx.accounts.vault.next_timeframe_reset_timestamp = ctx.accounts.vault.next_timeframe_reset_timestamp
             .checked_add(seconds_to_add)
             .ok_or(QuartzError::MathOverflow)?;
-        vault.remaining_spend_limit_per_timeframe = vault.spend_limit_per_timeframe;
+        ctx.accounts.vault.remaining_spend_limit_per_timeframe = ctx.accounts.vault.spend_limit_per_timeframe;
     }
 
     check!(
-        vault.remaining_spend_limit_per_timeframe >= amount_usdc_base_units,
+        ctx.accounts.vault.remaining_spend_limit_per_timeframe >= amount_usdc_base_units,
         QuartzError::InsufficientTimeframeSpendLimit
     );
 
     // Adjust remaining spend limit
-    vault.remaining_spend_limit_per_timeframe = vault.remaining_spend_limit_per_timeframe
+    ctx.accounts.vault.remaining_spend_limit_per_timeframe = ctx.accounts.vault.remaining_spend_limit_per_timeframe
         .checked_sub(amount_usdc_base_units)
         .ok_or(QuartzError::InsufficientTimeframeSpendLimit)?;
+
+    let clock = Clock::get()?;
+    emit_cpi!(SpendLimitUpdatedEvent {
+        common_fields: CommonFields::new(&clock, ctx.accounts.owner.key()),
+        spend_limit_per_transaction: ctx.accounts.vault.spend_limit_per_transaction,
+        spend_limit_per_timeframe: ctx.accounts.vault.spend_limit_per_timeframe,
+        remaining_spend_limit_per_timeframe: ctx.accounts.vault.remaining_spend_limit_per_timeframe,
+        next_timeframe_reset_timestamp: ctx.accounts.vault.next_timeframe_reset_timestamp,
+        timeframe_in_seconds: ctx.accounts.vault.timeframe_in_seconds
+    });
 
     Ok(())
 }
