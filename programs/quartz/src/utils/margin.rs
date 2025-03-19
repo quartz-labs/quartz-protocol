@@ -52,8 +52,7 @@ fn calculate_initial_margin_requirement<'info>(
         Some(drift_state.oracle_guard_rails),
     )?;
 
-    let margin_context = MarginContext::standard(MarginRequirementType::Initial)
-        .strict(true);
+    let margin_context = MarginContext::standard(MarginRequirementType::Initial);
 
     let margin_calculation = calculate_margin_requirement_and_total_collateral_and_liability_info(
         drift_user,

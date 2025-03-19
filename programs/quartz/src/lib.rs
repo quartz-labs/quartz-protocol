@@ -109,9 +109,10 @@ pub mod quartz {
 
     pub fn start_spend<'info>(
         ctx: Context<'_, '_, 'info, 'info, StartSpend<'info>>,
-        amount_usdc_base_units: u64
+        amount_usdc_base_units: u64,
+        spend_fee: bool
     ) -> Result<()> {
-        start_spend_handler(ctx, amount_usdc_base_units)
+        start_spend_handler(ctx, amount_usdc_base_units, spend_fee)
     }
 
     pub fn complete_spend<'info>(

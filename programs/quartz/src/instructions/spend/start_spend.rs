@@ -1,17 +1,18 @@
 use anchor_lang::{
-    prelude::*,
-    solana_program::sysvar::instructions::{
+    prelude::*, solana_program::sysvar::instructions::{
         self,
         load_current_index_checked, 
         load_instruction_at_checked
     }, Discriminator
 };
 use anchor_spl::{
-    associated_token::AssociatedToken,
+    associated_token::AssociatedToken, 
     token_interface::{
-        TokenInterface, 
+        Mint, 
         TokenAccount, 
-        Mint
+        TokenInterface, 
+        TransferChecked,
+        transfer_checked
     }
 };
 use drift::{
@@ -25,7 +26,7 @@ use drift::{
 };
 use solana_program::instruction::Instruction;
 use crate::{
-    check, config::{QuartzError, SPEND_CALLER, USDC_MARKET_INDEX}, events::{CommonFields, SpendLimitUpdatedEvent}, state::Vault, utils::get_drift_market
+    check, config::{QuartzError, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION, USDC_MARKET_INDEX}, events::{CommonFields, SpendLimitUpdatedEvent}, state::Vault, utils::get_drift_market
 };
 
 #[event_cpi]
@@ -47,6 +48,14 @@ pub struct StartSpend<'info> {
         constraint = spend_caller.key().eq(&SPEND_CALLER)
     )]
     pub spend_caller: Signer<'info>,
+
+    /// CHECK: Address is checked, and owner ensures it's a token account
+    #[account(
+        mut,
+        constraint = spend_fee_destination.key().eq(&SPEND_FEE_DESTINATION),
+        constraint = spend_fee_destination.owner.eq(&token_program.key())
+    )]
+    pub spend_fee_destination: UncheckedAccount<'info>,
 
     #[account(
         init,
@@ -108,6 +117,7 @@ pub struct StartSpend<'info> {
 pub fn start_spend_handler<'info>(
     mut ctx: Context<'_, '_, '_, 'info, StartSpend<'info>>, 
     amount_usdc_base_units: u64,
+    spend_fee: bool
 ) -> Result<()> {
     let index: usize = load_current_index_checked(
         &ctx.accounts.instructions.to_account_info()
@@ -155,6 +165,25 @@ pub fn start_spend_handler<'info>(
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
     drift_withdraw(cpi_ctx, USDC_MARKET_INDEX, amount_usdc_base_units, false)?;
+
+    // If taking a fee, transfer fee from mule to spend caller
+    if spend_fee {
+        let fee_amount = (amount_usdc_base_units * SPEND_FEE_BPS) / 10_000;
+        
+        transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(), 
+                TransferChecked { 
+                    from: ctx.accounts.mule.to_account_info(), 
+                    to: ctx.accounts.spend_fee_destination.to_account_info(), 
+                    authority: ctx.accounts.spend_caller.to_account_info(),
+                    mint: ctx.accounts.usdc_mint.to_account_info(),
+                }
+            ),
+            fee_amount,
+            ctx.accounts.usdc_mint.decimals
+        )?;
+    }
 
     Ok(())
 }
