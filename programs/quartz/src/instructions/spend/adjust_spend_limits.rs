@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::{events::{CommonFields, SpendLimitUpdatedEvent}, state::Vault};
+use crate::state::Vault;
 
 #[event_cpi]
 #[derive(Accounts)]
@@ -35,16 +35,6 @@ pub fn adjust_spend_limits_handler(
     ctx.accounts.vault.spend_limit_per_timeframe = spend_limit_per_timeframe;
     ctx.accounts.vault.timeframe_in_seconds = timeframe_in_seconds;
     ctx.accounts.vault.next_timeframe_reset_timestamp = next_timeframe_reset_timestamp;
-
-    let clock = Clock::get()?;
-    emit_cpi!(SpendLimitUpdatedEvent {
-        common_fields: CommonFields::new(&clock, ctx.accounts.owner.key()),
-        spend_limit_per_transaction: ctx.accounts.vault.spend_limit_per_transaction,
-        spend_limit_per_timeframe: ctx.accounts.vault.spend_limit_per_timeframe,
-        remaining_spend_limit_per_timeframe: ctx.accounts.vault.remaining_spend_limit_per_timeframe,
-        next_timeframe_reset_timestamp: ctx.accounts.vault.next_timeframe_reset_timestamp,
-        timeframe_in_seconds: ctx.accounts.vault.timeframe_in_seconds
-    });
 
     Ok(())
 }

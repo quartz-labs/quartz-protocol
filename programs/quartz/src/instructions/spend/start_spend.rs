@@ -26,7 +26,7 @@ use drift::{
 };
 use solana_program::instruction::Instruction;
 use crate::{
-    check, config::{QuartzError, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION, USDC_MARKET_INDEX}, events::{CommonFields, SpendLimitUpdatedEvent}, state::Vault, utils::get_drift_market
+    check, config::{QuartzError, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION, USDC_MARKET_INDEX}, state::Vault, utils::get_drift_market
 };
 
 #[event_cpi]
@@ -263,16 +263,6 @@ fn process_spend_limits<'info>(
     ctx.accounts.vault.remaining_spend_limit_per_timeframe = ctx.accounts.vault.remaining_spend_limit_per_timeframe
         .checked_sub(amount_usdc_base_units)
         .ok_or(QuartzError::InsufficientTimeframeSpendLimit)?;
-
-    let clock = Clock::get()?;
-    emit_cpi!(SpendLimitUpdatedEvent {
-        common_fields: CommonFields::new(&clock, ctx.accounts.owner.key()),
-        spend_limit_per_transaction: ctx.accounts.vault.spend_limit_per_transaction,
-        spend_limit_per_timeframe: ctx.accounts.vault.spend_limit_per_timeframe,
-        remaining_spend_limit_per_timeframe: ctx.accounts.vault.remaining_spend_limit_per_timeframe,
-        next_timeframe_reset_timestamp: ctx.accounts.vault.next_timeframe_reset_timestamp,
-        timeframe_in_seconds: ctx.accounts.vault.timeframe_in_seconds
-    });
 
     Ok(())
 }

@@ -1971,7 +1971,7 @@ dependencies = [
 
 [[package]]
 name = "quartz"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
