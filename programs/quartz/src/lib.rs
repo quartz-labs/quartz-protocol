@@ -156,8 +156,29 @@ pub mod quartz {
         )
     }
 
-    // Collateral Repay
+    pub fn initiate_spend_limits<'info>(
+        ctx: Context<'_, '_, 'info, 'info, InitiateSpendLimits<'info>>,
+        spend_limit_per_transaction: u64,
+        spend_limit_per_timeframe: u64,
+        timeframe_in_seconds: u64,
+        next_timeframe_reset_timestamp: u64
+    ) -> Result<()> {
+        initiate_spend_limits_handler(
+            ctx, 
+            spend_limit_per_transaction, 
+            spend_limit_per_timeframe, 
+            timeframe_in_seconds, 
+            next_timeframe_reset_timestamp
+        )
+    }
 
+    pub fn fulfil_spend_limits<'info>(
+        ctx: Context<'_, '_, 'info, 'info, FulfilSpendLimits<'info>>,
+    ) -> Result<()> {
+        fulfil_spend_limits_handler(ctx)
+    }
+
+    // Collateral Repay
     pub fn start_collateral_repay<'info>(
         ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
     ) -> Result<()> {

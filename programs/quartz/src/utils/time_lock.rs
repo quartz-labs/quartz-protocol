@@ -6,7 +6,7 @@ use solana_program::{
 use anchor_lang::prelude::*;
 use crate::{
     check, 
-    config::{QuartzError, PUBKEY_SIZE, SIGNATURE_SIZE, U1_SIZE, U64_SIZE}
+    config::{QuartzError, PUBKEY_SIZE, SIGNATURE_SIZE, TIME_LOCK_RENT_PAYER_SEEDS, U1_SIZE, U64_SIZE}
 };
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
@@ -31,16 +31,10 @@ pub fn allocate_time_lock_program_payer<'info>(
     system_program: &Program<'info, System>,
     space: usize
 ) -> Result<()> {
-    let time_lock_rent_payer_seeds = b"time_lock_rent_payer".as_ref();
-    let (expected_pda, bump) = Pubkey::find_program_address(
-        &[time_lock_rent_payer_seeds], 
-        &crate::ID
-    );
-
-    check!(
-        time_lock_rent_payer.key().eq(&expected_pda),
-        QuartzError::InvalidTimeLockRentPayer
-    );
+    let (
+        time_lock_rent_payer_seeds, 
+        bump
+    ) = validate_time_lock_rent_payer(time_lock_rent_payer)?;
 
     let seeds_with_bump = &[time_lock_rent_payer_seeds, &[bump]];
     let signer_seeds = &[&seeds_with_bump[..]];
@@ -66,6 +60,23 @@ pub fn allocate_time_lock_program_payer<'info>(
     allocate_time_lock(time_lock, system_program, space)?;
 
     Ok(())
+}
+
+fn validate_time_lock_rent_payer<'info>(
+    time_lock_rent_payer: &AccountInfo<'info>
+) -> Result<(&'info [u8], u8)> {
+    let time_lock_rent_payer_seeds = TIME_LOCK_RENT_PAYER_SEEDS;
+    let (expected_pda, bump) = Pubkey::find_program_address(
+        &[time_lock_rent_payer_seeds], 
+        &crate::ID
+    );
+
+    check!(
+        time_lock_rent_payer.key().eq(&expected_pda),
+        QuartzError::InvalidTimeLockRentPayer
+    );
+
+    Ok((time_lock_rent_payer_seeds, bump))
 }
 
 pub fn allocate_time_lock_owner_payer<'info>(
@@ -155,6 +166,7 @@ pub fn close_time_lock<'info, T>(
     let destination = if time_lock.time_lock().is_owner_payer {
         owner
     } else {
+        validate_time_lock_rent_payer(time_lock_rent_payer)?;
         &time_lock_rent_payer
     };
 
