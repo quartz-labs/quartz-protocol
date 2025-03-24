@@ -3,7 +3,10 @@ use solana_program::pubkey;
 
 pub const ANCHOR_DISCRIMINATOR: usize = 8;
 pub const PUBKEY_SIZE: usize = 32;
+pub const SIGNATURE_SIZE: usize = 64;
+pub const U1_SIZE: usize = 1;
 pub const U8_SIZE: usize = 1;
+pub const U16_SIZE: usize = 2;
 pub const U64_SIZE: usize = 8;
 
 pub const INIT_ACCOUNT_RENT_FEE: u64 = 0_035_000_000;
@@ -23,3 +26,5 @@ pub const SPEND_FEE_DESTINATION: Pubkey = pubkey!("9n8AU9ErEN4SrNgpVEuWSZFrHzB55
 pub const SPEND_FEE_BPS: u64 = 50;
 
 pub const DRIFT_DELETE_USER_DISCRIMINATOR: &[u8] = &[186, 85, 17, 249, 219, 231, 98, 251];
+
+pub const TIME_LOCK_DURATION_SLOTS: u64 = 450;

@@ -70,4 +70,10 @@ pub enum QuartzError {
     IllegalSpendInstructions,
     #[msg("Current timestamp cannot be negative")]
     InvalidTimestamp,
+    #[msg("Time lock rent payer must either be the owner or the time_lock_rent_payer PDA")]
+    InvalidTimeLockRentPayer,
+    #[msg("Release slot has not passed for time lock")]
+    TimeLockNotReleased,
+    #[msg("Time lock owner does not match")]
+    InvalidTimeLockOwner,
 }

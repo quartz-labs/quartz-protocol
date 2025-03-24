@@ -104,6 +104,26 @@ pub mod quartz {
         )
     }
 
+    pub fn initiate_withdraw<'info>(
+        ctx: Context<'_, '_, '_, 'info, InitiateWithdraw<'info>>,
+        amount_base_units: u64,
+        drift_market_index: u16,
+        reduce_only: bool
+    ) -> Result<()> {
+        initiate_withdraw_handler(
+            ctx, 
+            amount_base_units, 
+            drift_market_index, 
+            reduce_only
+        )
+    }
+
+    pub fn fulfil_withdraw<'info>(
+        ctx: Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
+    ) -> Result<()> {
+        fulfil_withdraw_handler(ctx)
+    }
+
     // Spend
 
     pub fn start_spend<'info>(

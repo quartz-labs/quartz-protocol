@@ -1,7 +1,9 @@
 use anchor_lang::{prelude::*, Discriminator};
 use solana_program::instruction::Instruction;
 use crate::{
-    check, config::{QuartzError, DRIFT_MARKETS}, state::DriftMarket
+    check, 
+    config::{QuartzError, DRIFT_MARKETS}, 
+    state::DriftMarket
 };
 
 pub fn get_drift_market(market_index: u16) -> Result<&'static DriftMarket> {

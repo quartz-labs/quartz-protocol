@@ -1,5 +1,8 @@
 use anchor_lang::prelude::*;
-use crate::config::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U8_SIZE, U64_SIZE};
+use crate::{
+    config::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U16_SIZE, U1_SIZE, U64_SIZE, U8_SIZE}, 
+    utils::{TimeLock, TimeLocked}
+};
 use solana_program::pubkey::Pubkey;
 
 pub struct DriftMarket {
@@ -42,4 +45,24 @@ pub struct CollateralRepayLedger {
 impl Space for CollateralRepayLedger {
     const INIT_SPACE: usize = ANCHOR_DISCRIMINATOR 
         + U64_SIZE + U64_SIZE;
+}
+
+#[account]
+pub struct WithdrawOrder {
+    pub time_lock: TimeLock,
+    pub amount_base_units: u64,
+    pub drift_market_index: u16,
+    pub reduce_only: bool
+}
+
+impl Space for WithdrawOrder {
+    const INIT_SPACE: usize = ANCHOR_DISCRIMINATOR 
+        + PUBKEY_SIZE + U8_SIZE 
+        + U64_SIZE + U16_SIZE + U1_SIZE;
+}
+
+impl TimeLocked for WithdrawOrder {
+    fn time_lock(&self) -> &TimeLock {
+        &self.time_lock
+    }
 }
