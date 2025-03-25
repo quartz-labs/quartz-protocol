@@ -3,7 +3,6 @@ use solana_program::pubkey;
 
 pub const ANCHOR_DISCRIMINATOR: usize = 8;
 pub const PUBKEY_SIZE: usize = 32;
-pub const SIGNATURE_SIZE: usize = 64;
 pub const U1_SIZE: usize = 1;
 pub const U8_SIZE: usize = 1;
 pub const U16_SIZE: usize = 2;

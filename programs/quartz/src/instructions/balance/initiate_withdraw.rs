@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use solana_program::ed25519_program;
 use crate::{
     config::TIME_LOCK_DURATION_SLOTS, 
     state::{Vault, WithdrawOrder}, 
@@ -25,10 +24,6 @@ pub struct InitiateWithdraw<'info> {
     pub time_lock_rent_payer: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
-
-    /// CHECK: Safe, address is checked
-    #[account(address = ed25519_program::ID)]
-    pub ed25519_program: UncheckedAccount<'info>
 }
 
 pub fn initiate_withdraw_handler<'info>(
@@ -58,14 +53,11 @@ pub fn initiate_withdraw_handler<'info>(
     let current_slot = Clock::get()?.slot;
     let release_slot = current_slot + TIME_LOCK_DURATION_SLOTS;
 
-    let signature = [0; 64];
-
     let withdraw_order = WithdrawOrder {
         time_lock: TimeLock {
             owner: ctx.accounts.owner.key(),
             is_owner_payer,
-            release_slot,
-            signature
+            release_slot
         },
         amount_base_units,
         drift_market_index,

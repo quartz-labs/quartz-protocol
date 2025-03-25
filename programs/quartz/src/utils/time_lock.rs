@@ -6,19 +6,18 @@ use solana_program::{
 use anchor_lang::prelude::*;
 use crate::{
     check, 
-    config::{QuartzError, PUBKEY_SIZE, SIGNATURE_SIZE, TIME_LOCK_RENT_PAYER_SEEDS, U1_SIZE, U64_SIZE}
+    config::{QuartzError, PUBKEY_SIZE, TIME_LOCK_RENT_PAYER_SEEDS, U1_SIZE, U64_SIZE}
 };
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
 pub struct TimeLock {
     pub owner: Pubkey,
     pub is_owner_payer: bool,
-    pub release_slot: u64,
-    pub signature: [u8; 64]
+    pub release_slot: u64
 }
 
 impl Space for TimeLock {
-    const INIT_SPACE: usize = PUBKEY_SIZE + U1_SIZE + U64_SIZE + SIGNATURE_SIZE;
+    const INIT_SPACE: usize = PUBKEY_SIZE + U1_SIZE + U64_SIZE;
 }
 
 pub trait TimeLocked {

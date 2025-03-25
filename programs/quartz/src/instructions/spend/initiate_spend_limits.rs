@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use solana_program::ed25519_program;
 use crate::{
     config::TIME_LOCK_DURATION_SLOTS, 
     state::{SpendLimitsOrder, Vault}, 
@@ -25,10 +24,6 @@ pub struct InitiateSpendLimits<'info> {
     pub time_lock_rent_payer: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
-
-    /// CHECK: Safe, address is checked
-    #[account(address = ed25519_program::ID)]
-    pub ed25519_program: UncheckedAccount<'info>
 }
 
 pub fn initiate_spend_limits_handler<'info>(
@@ -59,14 +54,11 @@ pub fn initiate_spend_limits_handler<'info>(
     let current_slot = Clock::get()?.slot;
     let release_slot = current_slot + TIME_LOCK_DURATION_SLOTS;
 
-    let signature = [0; 64];
-
     let spend_limits_order = SpendLimitsOrder {
         time_lock: TimeLock {
             owner: ctx.accounts.owner.key(),
             is_owner_payer,
-            release_slot,
-            signature
+            release_slot
         },
         spend_limit_per_transaction,
         spend_limit_per_timeframe,

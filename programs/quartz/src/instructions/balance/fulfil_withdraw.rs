@@ -20,7 +20,6 @@ use drift::{
         user::{User as DriftUser, UserStats as DriftUserStats}
     }
 };
-use solana_program::ed25519_program;
 use crate::{
     check, config::QuartzError, state::{Vault, WithdrawOrder}, utils::{close_time_lock, get_drift_market, validate_time_lock}
 };
@@ -33,10 +32,6 @@ pub struct FulfilWithdraw<'info> {
     /// CHECK: Checked in handler
     #[account(mut)]
     pub time_lock_rent_payer: UncheckedAccount<'info>,
-
-    /// CHECK: Safe, address is checked
-    #[account(address = ed25519_program::ID)]
-    pub ed25519_program: UncheckedAccount<'info>,
 
     #[account(
         mut,

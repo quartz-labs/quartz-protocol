@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use solana_program::ed25519_program;
 use crate::{state::{SpendLimitsOrder, Vault}, utils::{close_time_lock, validate_time_lock}};
 
 #[event_cpi]
@@ -11,10 +10,6 @@ pub struct FulfilSpendLimits<'info> {
     /// CHECK: Checked in handler
     #[account(mut)]
     pub time_lock_rent_payer: UncheckedAccount<'info>,
-
-    /// CHECK: Safe, address is checked
-    #[account(address = ed25519_program::ID)]
-    pub ed25519_program: UncheckedAccount<'info>,
 
     #[account(
         mut,
