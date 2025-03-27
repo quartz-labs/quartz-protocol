@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 use crate::{
     config::TIME_LOCK_DURATION_SLOTS, 
     state::{SpendLimitsOrder, Vault}, 
@@ -54,7 +54,7 @@ pub fn initiate_spend_limits_handler<'info>(
     let current_slot = Clock::get()?.slot;
     let release_slot = current_slot + TIME_LOCK_DURATION_SLOTS;
 
-    let spend_limits_order = SpendLimitsOrder {
+    let spend_limits_order_data = SpendLimitsOrder {
         time_lock: TimeLock {
             owner: ctx.accounts.owner.key(),
             is_owner_payer,
@@ -66,7 +66,9 @@ pub fn initiate_spend_limits_handler<'info>(
         next_timeframe_reset_timestamp
     };
 
-    spend_limits_order.serialize(&mut *ctx.accounts.spend_limits_order.data.borrow_mut())?;
+    let mut data = ctx.accounts.spend_limits_order.try_borrow_mut_data()?;
+    data[..8].copy_from_slice(&SpendLimitsOrder::DISCRIMINATOR);
+    spend_limits_order_data.serialize(&mut &mut data[8..])?;
 
     Ok(())
 }

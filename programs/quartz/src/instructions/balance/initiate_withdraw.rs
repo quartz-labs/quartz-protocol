@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 use crate::{
     config::TIME_LOCK_DURATION_SLOTS, 
     state::{Vault, WithdrawOrder}, 
@@ -53,7 +53,7 @@ pub fn initiate_withdraw_handler<'info>(
     let current_slot = Clock::get()?.slot;
     let release_slot = current_slot + TIME_LOCK_DURATION_SLOTS;
 
-    let withdraw_order = WithdrawOrder {
+    let withdraw_order_data = WithdrawOrder {
         time_lock: TimeLock {
             owner: ctx.accounts.owner.key(),
             is_owner_payer,
@@ -64,7 +64,9 @@ pub fn initiate_withdraw_handler<'info>(
         reduce_only
     };
 
-    withdraw_order.serialize(&mut *ctx.accounts.withdraw_order.data.borrow_mut())?;
+    let mut data = ctx.accounts.withdraw_order.try_borrow_mut_data()?;
+    data[..8].copy_from_slice(&WithdrawOrder::DISCRIMINATOR);
+    withdraw_order_data.serialize(&mut &mut data[8..])?;
 
     Ok(())
 }

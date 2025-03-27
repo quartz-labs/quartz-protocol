@@ -90,6 +90,20 @@ pub mod quartz {
         )
     }
 
+    pub fn fulfil_deposit<'info>(
+        ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>, 
+        amount_base_units: u64,
+        drift_market_index: u16,
+        reduce_only: bool
+    ) -> Result<()> {
+        fulfil_deposit_handler(
+            ctx, 
+            amount_base_units, 
+            drift_market_index, 
+            reduce_only
+        )
+    }
+
     pub fn withdraw<'info>(
         ctx: Context<'_, '_, '_, 'info, Withdraw<'info>>, 
         amount_base_units: u64, 
