@@ -33,6 +33,9 @@ pub struct FulfilWithdraw<'info> {
     #[account(mut)]
     pub time_lock_rent_payer: UncheckedAccount<'info>,
 
+    #[account(mut)]
+    pub caller: Signer<'info>,
+
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
@@ -51,8 +54,12 @@ pub struct FulfilWithdraw<'info> {
     )]
     pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(mut)]
-    pub owner: Signer<'info>,
+    /// CHECK: Any account, once it has a vault and matches the order
+    #[account(
+        mut,
+        constraint = owner.key().eq(&withdraw_order.time_lock.owner)
+    )]
+    pub owner: UncheckedAccount<'info>,
 
     #[account(
         mut,
