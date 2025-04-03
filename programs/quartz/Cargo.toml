@@ -1,6 +1,6 @@
 [package]
 name = "quartz"
-version = "0.9.1"
+version = "0.9.2"
 description = "Quartz"
 edition = "2021"
 
@@ -19,7 +19,7 @@ no-log-ix-name = []
 anchor-lang = "0.29.0"
 anchor-spl = "0.29.0"
 solana-program = "1.16"
-solana-security-txt = "=0.1.0"
+solana-security-txt = "1.1.0"
 pyth-solana-receiver-sdk = "0.3.2"
 drift = { git = "https://github.com/drift-labs/protocol-v2", rev = "13b5074dc3c76f668a78a98c7f438eeabb6c4e30", version = "2.110.0", features = ["cpi"] }
 token-messenger-minter = { path = "../token-messenger-minter", features = ["cpi"] }

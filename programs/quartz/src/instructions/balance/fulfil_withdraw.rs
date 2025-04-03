@@ -1,27 +1,25 @@
+use crate::{
+    check,
+    config::QuartzError,
+    state::{Vault, WithdrawOrder},
+    utils::{close_time_lock, get_drift_market, validate_time_lock},
+};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{
+        close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
         TransferChecked,
-        transfer_checked,
-        TokenInterface, 
-        TokenAccount, 
-        Mint,
-        CloseAccount,
-        close_account
-    }
+    },
 };
 use drift::{
-    program::Drift,
-    cpi::withdraw as drift_withdraw, 
     cpi::accounts::Withdraw as DriftWithdraw,
+    cpi::withdraw as drift_withdraw,
+    program::Drift,
     state::{
-        state::State as DriftState, 
-        user::{User as DriftUser, UserStats as DriftUserStats}
-    }
-};
-use crate::{
-    check, config::QuartzError, state::{Vault, WithdrawOrder}, utils::{close_time_lock, get_drift_market, validate_time_lock}
+        state::State as DriftState,
+        user::{User as DriftUser, UserStats as DriftUserStats},
+    },
 };
 
 #[derive(Accounts)]
@@ -48,7 +46,7 @@ pub struct FulfilWithdraw<'info> {
         init,
         seeds = [vault.key().as_ref(), spl_mint.key().as_ref()],
         bump,
-        payer = owner,
+        payer = caller,
         token::mint = spl_mint,
         token::authority = vault
     )]
@@ -78,7 +76,7 @@ pub struct FulfilWithdraw<'info> {
         bump
     )]
     pub drift_user: AccountLoader<'info, DriftUser>,
-    
+
     #[account(
         mut,
         seeds = [b"user_stats".as_ref(), vault.key().as_ref()],
@@ -98,7 +96,7 @@ pub struct FulfilWithdraw<'info> {
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
     pub spot_market_vault: UncheckedAccount<'info>,
-    
+
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     pub drift_signer: UncheckedAccount<'info>,
 
@@ -112,13 +110,9 @@ pub struct FulfilWithdraw<'info> {
 }
 
 pub fn fulfil_withdraw_handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>
+    ctx: Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
 ) -> Result<()> {
-    let (
-        amount_base_units, 
-        drift_market_index, 
-        reduce_only
-    ) = get_order_data(&ctx)?;
+    let (amount_base_units, drift_market_index, reduce_only) = get_order_data(&ctx)?;
 
     // Validate market index and mint
     let drift_market = get_drift_market(drift_market_index)?;
@@ -126,14 +120,10 @@ pub fn fulfil_withdraw_handler<'info>(
         &ctx.accounts.spl_mint.key().eq(&drift_market.mint),
         QuartzError::InvalidMint
     );
-    
+
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
+    let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
     let signer_seeds = &[&seeds[..]];
 
     // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
@@ -155,7 +145,7 @@ pub fn fulfil_withdraw_handler<'info>(
             user_token_account: ctx.accounts.vault_spl.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
-        signer_seeds
+        signer_seeds,
     );
 
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
@@ -167,17 +157,17 @@ pub fn fulfil_withdraw_handler<'info>(
     let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
     transfer_checked(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(), 
-            TransferChecked { 
-                from: ctx.accounts.vault_spl.to_account_info(), 
-                to: ctx.accounts.owner_spl.to_account_info(), 
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.vault_spl.to_account_info(),
+                to: ctx.accounts.owner_spl.to_account_info(),
                 authority: ctx.accounts.vault.to_account_info(),
                 mint: ctx.accounts.spl_mint.to_account_info(),
-            }, 
-            signer_seeds
+            },
+            signer_seeds,
         ),
         true_amount_withdrawn,
-        ctx.accounts.spl_mint.decimals
+        ctx.accounts.spl_mint.decimals,
     )?;
 
     // Close vault's ATA
@@ -188,7 +178,7 @@ pub fn fulfil_withdraw_handler<'info>(
             destination: ctx.accounts.owner.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
-        signer_seeds
+        signer_seeds,
     );
     close_account(cpi_ctx_close)?;
 
@@ -196,11 +186,11 @@ pub fn fulfil_withdraw_handler<'info>(
 }
 
 fn get_order_data<'info>(
-    ctx: &Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>
+    ctx: &Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
 ) -> Result<(u64, u16, bool)> {
     validate_time_lock(
         &ctx.accounts.owner.key(),
-        &ctx.accounts.withdraw_order.time_lock
+        &ctx.accounts.withdraw_order.time_lock,
     )?;
 
     let amount_base_units = ctx.accounts.withdraw_order.amount_base_units;
@@ -210,7 +200,7 @@ fn get_order_data<'info>(
     close_time_lock(
         &ctx.accounts.withdraw_order,
         &ctx.accounts.time_lock_rent_payer.to_account_info(),
-        &ctx.accounts.owner.to_account_info()
+        &ctx.accounts.owner.to_account_info(),
     )?;
 
     Ok((amount_base_units, drift_market_index, reduce_only))

@@ -967,7 +967,7 @@ dependencies = [
  "pythnet-sdk 2.1.0",
  "serum_dex",
  "solana-program",
- "solana-security-txt 1.1.0",
+ "solana-security-txt",
  "static_assertions",
  "switchboard",
  "switchboard-on-demand",
@@ -1527,7 +1527,7 @@ dependencies = [
  "libsecp256k1 0.7.1",
  "num-traits",
  "solana-program",
- "solana-security-txt 1.1.0",
+ "solana-security-txt",
 ]
 
 [[package]]
@@ -1778,7 +1778,7 @@ dependencies = [
  "num_enum 0.5.9",
  "shank",
  "solana-program",
- "solana-security-txt 1.1.0",
+ "solana-security-txt",
  "spl-associated-token-account",
  "spl-token 3.5.0",
  "static_assertions",
@@ -1979,7 +1979,7 @@ dependencies = [
  "message-transmitter",
  "pyth-solana-receiver-sdk 0.3.2",
  "solana-program",
- "solana-security-txt 0.1.0",
+ "solana-security-txt",
  "token-messenger-minter",
 ]
 
@@ -2641,16 +2641,6 @@ dependencies = [
 
 [[package]]
 name = "solana-security-txt"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "539de116d8e2c3f400ffc53bfaf0c21ada5cfb0bed7b6b2ee4c1ef89ea64b2f9"
-dependencies = [
- "thiserror",
- "twoway",
-]
-
-[[package]]
-name = "solana-security-txt"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e0461f3afb29d8591300b3dd09b5472b3772d65688a2826ad960b8c0d5fa605"
@@ -2965,6 +2955,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "test"
+version = "0.1.0"
+
+[[package]]
 name = "thiserror"
 version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3027,7 +3021,7 @@ dependencies = [
  "message-transmitter",
  "num-traits",
  "solana-program",
- "solana-security-txt 1.1.0",
+ "solana-security-txt",
 ]
 
 [[package]]
@@ -3068,16 +3062,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "twoway"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c57ffb460d7c24cd6eda43694110189030a3d1dfe418416d9468fd1c1d290b47"
-dependencies = [
- "memchr",
- "unchecked-index",
-]
-
-[[package]]
 name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3094,12 +3078,6 @@ dependencies = [
  "hex",
  "static_assertions",
 ]
-
-[[package]]
-name = "unchecked-index"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eeba86d422ce181a719445e51872fa30f1f7413b62becb52e95ec91aa262d85c"
 
 [[package]]
 name = "unicode-ident"

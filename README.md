@@ -4,7 +4,7 @@
   <h1 style="margin-top:20px;">Quartz Protocol</h1>
 </div>
 
-This repository provides a source-available view of Quartz's Solana progra.
+This repository provides a source-available view of Quartz's Solana program.
 
 Development started for the Colosseum Radar hackathon and is still in early stages.
 
