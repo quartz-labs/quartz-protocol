@@ -1,24 +1,17 @@
-use anchor_lang::{
-    prelude::*, solana_program::{
-        instruction::Instruction, 
-        sysvar::instructions::{
-            self,
-            load_current_index_checked, 
-            load_instruction_at_checked
-        }
-    }, 
-    Discriminator
-};
-use anchor_spl::token_interface::{
-    TokenInterface, 
-    TokenAccount, 
-    Mint
-};
 use crate::{
-    check, 
+    check,
     config::QuartzError,
-    state::{CollateralRepayLedger, Vault}
+    state::{CollateralRepayLedger, Vault},
 };
+use anchor_lang::{
+    prelude::*,
+    solana_program::{
+        instruction::Instruction,
+        sysvar::instructions::{self, load_current_index_checked, load_instruction_at_checked},
+    },
+    Discriminator,
+};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 #[derive(Accounts)]
 pub struct StartCollateralRepay<'info> {
@@ -79,18 +72,13 @@ pub struct StartCollateralRepay<'info> {
 pub fn start_collateral_repay_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
 ) -> Result<()> {
-    let index: usize = load_current_index_checked(
-        &ctx.accounts.instructions.to_account_info()
-    )?.into();
-    let deposit_instruction = load_instruction_at_checked(
-        index + 2, 
-        &ctx.accounts.instructions.to_account_info()
-    )?;
-    let withdraw_instruction = load_instruction_at_checked(
-        index + 3, 
-        &ctx.accounts.instructions.to_account_info()
-    )?;
-    
+    let index: usize =
+        load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
+    let deposit_instruction =
+        load_instruction_at_checked(index + 2, &ctx.accounts.instructions.to_account_info())?;
+    let withdraw_instruction =
+        load_instruction_at_checked(index + 3, &ctx.accounts.instructions.to_account_info())?;
+
     validate_instruction_order(&deposit_instruction, &withdraw_instruction)?;
 
     validate_user_accounts_context(&deposit_instruction, &withdraw_instruction)?;
@@ -108,7 +96,7 @@ pub fn start_collateral_repay_handler<'info>(
 }
 
 #[inline(never)]
-pub fn validate_instruction_order<'info>(
+pub fn validate_instruction_order(
     deposit_instruction: &Instruction,
     withdraw_instruction: &Instruction,
 ) -> Result<()> {
@@ -146,7 +134,7 @@ pub fn validate_instruction_order<'info>(
 #[inline(never)]
 fn validate_user_accounts_context<'info>(
     deposit_instruction: &Instruction,
-    withdraw_instruction: &Instruction
+    withdraw_instruction: &Instruction,
 ) -> Result<()> {
     let deposit_caller = deposit_instruction.accounts[0].pubkey;
     let withdraw_caller = withdraw_instruction.accounts[0].pubkey;
@@ -187,12 +175,20 @@ fn validate_user_accounts_context<'info>(
 }
 
 #[inline(never)]
-fn validate_drift_markets<'info>(
+fn validate_drift_markets(
     deposit_instruction: &Instruction,
-    withdraw_instruction: &Instruction
+    withdraw_instruction: &Instruction,
 ) -> Result<()> {
-    let deposit_market_index = u16::from_le_bytes(deposit_instruction.data[8..10].try_into().unwrap());
-    let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[8..10].try_into().unwrap());
+    let deposit_market_index = u16::from_le_bytes(
+        deposit_instruction.data[8..10]
+            .try_into()
+            .expect("Failed to serialize deposit market index from introspection ix data"),
+    );
+    let withdraw_market_index = u16::from_le_bytes(
+        withdraw_instruction.data[8..10]
+            .try_into()
+            .expect("Failed to serialize withdraw market index from introspection ix data"),
+    );
     check!(
         !deposit_market_index.eq(&withdraw_market_index),
         QuartzError::IdenticalCollateralRepayMarkets
@@ -205,7 +201,7 @@ fn validate_drift_markets<'info>(
 fn validate_spl_context<'info>(
     ctx: &Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
     deposit_instruction: &Instruction,
-    withdraw_instruction: &Instruction
+    withdraw_instruction: &Instruction,
 ) -> Result<()> {
     // Validate mints
     let deposit_mint = deposit_instruction.accounts[5].pubkey;
@@ -223,13 +219,19 @@ fn validate_spl_context<'info>(
     // Validate ATAs
     let deposit_spl_account = deposit_instruction.accounts[1].pubkey;
     check!(
-        ctx.accounts.caller_deposit_spl.key().eq(&deposit_spl_account),
+        ctx.accounts
+            .caller_deposit_spl
+            .key()
+            .eq(&deposit_spl_account),
         QuartzError::InvalidSourceTokenAccount
     );
 
     let withdraw_spl_account = withdraw_instruction.accounts[1].pubkey;
     check!(
-        ctx.accounts.caller_withdraw_spl.key().eq(&withdraw_spl_account),
+        ctx.accounts
+            .caller_withdraw_spl
+            .key()
+            .eq(&withdraw_spl_account),
         QuartzError::InvalidSourceTokenAccount
     );
 

@@ -11,7 +11,7 @@ pub struct UpgradeVault<'info> {
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump
     )]
-    pub vault: UncheckedAccount<'info>, 
+    pub vault: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -32,7 +32,7 @@ pub fn upgrade_vault_handler(
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
     timeframe_in_seconds: u64,
-    next_timeframe_reset_timestamp: u64
+    next_timeframe_reset_timestamp: u64,
 ) -> Result<()> {
     // Get current Vault data
     let existing_vault = &ctx.accounts.vault;
@@ -40,12 +40,12 @@ pub fn upgrade_vault_handler(
         let bump_start_bytes = ANCHOR_DISCRIMINATOR + PUBKEY_SIZE;
 
         let data = existing_vault.data.borrow();
-        let owner_bytes = &data[
-            ANCHOR_DISCRIMINATOR
-            ..
-            bump_start_bytes
-        ];
-        let owner = Pubkey::new_from_array(owner_bytes.try_into().unwrap());
+        let owner_bytes = &data[ANCHOR_DISCRIMINATOR..bump_start_bytes];
+        let owner = Pubkey::new_from_array(
+            owner_bytes
+                .try_into()
+                .expect("Failed to deserialize owner bytes data from Vault"),
+        );
 
         (owner, data[bump_start_bytes])
     };
@@ -65,9 +65,11 @@ pub fn upgrade_vault_handler(
         spend_limit_per_timeframe,
         remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
         next_timeframe_reset_timestamp,
-        timeframe_in_seconds
+        timeframe_in_seconds,
     };
-    let new_vault_vec = new_vault.try_to_vec().unwrap();
+    let new_vault_vec = new_vault
+        .try_to_vec()
+        .expect("Failed to convert Vault struct to vec");
 
     let rent = Rent::get()?;
     let new_minimum_balance = rent.minimum_balance(Vault::INIT_SPACE);
@@ -77,17 +79,14 @@ pub fn upgrade_vault_handler(
 
     // Extend the vault size
     let init_rent_payer_bump = ctx.bumps.init_rent_payer;
-    let seeds = &[
-        b"init_rent_payer".as_ref(),
-        &[init_rent_payer_bump]
-    ];
+    let seeds = &[b"init_rent_payer".as_ref(), &[init_rent_payer_bump]];
     let signer_seeds = &[&seeds[..]];
 
     invoke_signed(
         &system_instruction::transfer(
-            ctx.accounts.init_rent_payer.key, 
-            existing_vault.key, 
-            lamports_diff
+            ctx.accounts.init_rent_payer.key,
+            existing_vault.key,
+            lamports_diff,
         ),
         &[
             ctx.accounts.init_rent_payer.to_account_info(),

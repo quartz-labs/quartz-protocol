@@ -1,39 +1,24 @@
+use crate::{
+    check,
+    config::QuartzError,
+    load_mut,
+    state::{CollateralRepayLedger, Vault},
+    utils::{get_account_health, get_drift_market, validate_start_collateral_repay_ix},
+};
 use anchor_lang::{
-    prelude::*, 
+    prelude::*,
     solana_program::sysvar::instructions::{
-        self,
-        load_current_index_checked, 
-        load_instruction_at_checked
+        self, load_current_index_checked, load_instruction_at_checked,
     },
 };
 use anchor_spl::token_interface::{
+    close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
     TransferChecked,
-    transfer_checked,
-    TokenInterface, 
-    TokenAccount, 
-    Mint,
-    CloseAccount,
-    close_account
 };
 use drift::{
-    cpi::{
-        accounts::Deposit as DriftDeposit,
-        deposit as drift_deposit
-    }, 
-    state::{
-        state::State as DriftState, 
-        user::User as DriftUser
-    },
-    program::Drift
-};
-use crate::{
-    check, 
-    config::QuartzError, 
-    load_mut, 
-    state::{CollateralRepayLedger, Vault}, 
-    utils::{
-        get_account_health, get_drift_market, validate_start_collateral_repay_ix
-    }
+    cpi::{accounts::Deposit as DriftDeposit, deposit as drift_deposit},
+    program::Drift,
+    state::{state::State as DriftState, user::User as DriftUser},
 };
 
 #[derive(Accounts)]
@@ -79,7 +64,7 @@ pub struct DepositCollateralRepay<'info> {
         bump
     )]
     pub drift_user: AccountLoader<'info, DriftUser>,
-    
+
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
     pub drift_user_stats: UncheckedAccount<'info>,
@@ -91,7 +76,7 @@ pub struct DepositCollateralRepay<'info> {
         bump
     )]
     pub drift_state: Box<Account<'info, DriftState>>,
-    
+
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
     pub spot_market_vault: UncheckedAccount<'info>,
@@ -116,15 +101,11 @@ pub struct DepositCollateralRepay<'info> {
 
 pub fn deposit_collateral_repay_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, DepositCollateralRepay<'info>>,
-    deposit_market_index: u16
+    deposit_market_index: u16,
 ) -> Result<()> {
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
+    let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let deposit_market = get_drift_market(deposit_market_index)?;
@@ -133,22 +114,21 @@ pub fn deposit_collateral_repay_handler<'info>(
         QuartzError::InvalidMint
     );
 
-    let index: usize = load_current_index_checked(
-        &ctx.accounts.instructions.to_account_info()
-    )?.into();
-    let start_instruction = load_instruction_at_checked(
-        index - 2, 
-        &ctx.accounts.instructions.to_account_info()
-    )?;
+    let index: usize =
+        load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
+    let start_instruction =
+        load_instruction_at_checked(index - 2, &ctx.accounts.instructions.to_account_info())?;
     validate_start_collateral_repay_ix(&start_instruction)?;
-    
+
     // Validate auto repay threshold if owner hasn't signed
     if !ctx.accounts.owner.is_signer {
-        let withdraw_instruction = load_instruction_at_checked(
-            index + 1, 
-            &ctx.accounts.instructions.to_account_info()
-        )?;
-        let withdraw_market_index = u16::from_le_bytes(withdraw_instruction.data[8..10].try_into().unwrap());
+        let withdraw_instruction =
+            load_instruction_at_checked(index + 1, &ctx.accounts.instructions.to_account_info())?;
+        let withdraw_market_index = u16::from_le_bytes(
+            withdraw_instruction.data[8..10]
+                .try_into()
+                .expect("Failed to deserialize market index from withdraw instruction data"),
+        );
 
         validate_health(&ctx, deposit_market_index, withdraw_market_index)?;
     }
@@ -161,16 +141,16 @@ pub fn deposit_collateral_repay_handler<'info>(
     // Transfer tokens from caller's ATA to vault's ATA
     transfer_checked(
         CpiContext::new(
-            ctx.accounts.token_program.to_account_info(), 
-            TransferChecked { 
-                from: ctx.accounts.caller_spl.to_account_info(), 
-                to: ctx.accounts.vault_spl.to_account_info(), 
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.caller_spl.to_account_info(),
+                to: ctx.accounts.vault_spl.to_account_info(),
                 authority: ctx.accounts.caller.to_account_info(),
                 mint: ctx.accounts.spl_mint.to_account_info(),
-            }
+            },
         ),
         amount_deposit_base_units,
-        ctx.accounts.spl_mint.decimals
+        ctx.accounts.spl_mint.decimals,
     )?;
 
     // Drift Deposit CPI
@@ -185,13 +165,18 @@ pub fn deposit_collateral_repay_handler<'info>(
             user_token_account: ctx.accounts.vault_spl.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
-        signer_seeds
+        signer_seeds,
     );
 
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
     // reduce_only = true means that the caller can not deposit more than the user's borrowed position / create a collateral position
-    drift_deposit(cpi_ctx, deposit_market_index, amount_deposit_base_units, true)?;
+    drift_deposit(
+        cpi_ctx,
+        deposit_market_index,
+        amount_deposit_base_units,
+        true,
+    )?;
 
     // Return any remaining balance (in case return_only prevented full deposit)
     ctx.accounts.vault_spl.reload()?;
@@ -199,17 +184,17 @@ pub fn deposit_collateral_repay_handler<'info>(
     if remaining_balance > 0 {
         transfer_checked(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(), 
-                TransferChecked { 
-                    from: ctx.accounts.vault_spl.to_account_info(), 
-                    to: ctx.accounts.caller_spl.to_account_info(), 
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.vault_spl.to_account_info(),
+                    to: ctx.accounts.caller_spl.to_account_info(),
                     authority: ctx.accounts.vault.to_account_info(),
                     mint: ctx.accounts.spl_mint.to_account_info(),
-                }, 
-                signer_seeds
+                },
+                signer_seeds,
             ),
             remaining_balance,
-            ctx.accounts.spl_mint.decimals
+            ctx.accounts.spl_mint.decimals,
         )?;
     }
 
@@ -221,7 +206,7 @@ pub fn deposit_collateral_repay_handler<'info>(
             destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
-        signer_seeds
+        signer_seeds,
     );
     close_account(cpi_ctx_close)?;
 
@@ -236,7 +221,7 @@ pub fn deposit_collateral_repay_handler<'info>(
 fn validate_health<'info>(
     ctx: &Context<'_, '_, 'info, 'info, DepositCollateralRepay<'info>>,
     deposit_market_index: u16,
-    withdraw_market_index: u16
+    withdraw_market_index: u16,
 ) -> Result<()> {
     let user = &mut load_mut!(ctx.accounts.drift_user)?;
     let health = get_account_health(
@@ -244,13 +229,10 @@ fn validate_health<'info>(
         &ctx.accounts.drift_state,
         withdraw_market_index,
         deposit_market_index,
-        &ctx.remaining_accounts
+        ctx.remaining_accounts,
     )?;
 
-    check!(
-        health <= 0,
-        QuartzError::AutoRepayThresholdNotReached
-    );
+    check!(health == 0, QuartzError::AutoRepayThresholdNotReached);
 
     Ok(())
 }

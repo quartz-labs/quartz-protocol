@@ -1,9 +1,12 @@
+#![deny(clippy::unwrap_used)]
+#![deny(unused_must_use)]
+
 use anchor_lang::prelude::*;
 
-mod state;
-mod utils;
 mod config;
 mod instructions;
+mod state;
+mod utils;
 use instructions::*;
 
 declare_id!("6JjHXLheGSNvvexgzMthEcgjkcirDrGduc3HAKB2P1v2");
@@ -28,29 +31,26 @@ pub mod quartz {
 
     pub fn reclaim_bridge_rent(
         ctx: Context<ReclaimBridgeRent>,
-        attestation: Vec<u8>
+        attestation: Vec<u8>,
     ) -> Result<()> {
-        reclaim_bridge_rent_handler(
-            ctx, 
-            attestation
-        )
+        reclaim_bridge_rent_handler(ctx, attestation)
     }
 
     // User
 
     pub fn init_user(
-        ctx: Context<InitUser>, 
+        ctx: Context<InitUser>,
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
         timeframe_in_seconds: u64,
-        next_timeframe_reset_timestamp: u64
+        next_timeframe_reset_timestamp: u64,
     ) -> Result<()> {
         init_user_handler(
-            ctx, 
-            spend_limit_per_transaction, 
-            spend_limit_per_timeframe, 
+            ctx,
+            spend_limit_per_transaction,
+            spend_limit_per_timeframe,
             timeframe_in_seconds,
-            next_timeframe_reset_timestamp
+            next_timeframe_reset_timestamp,
         )
     }
 
@@ -63,73 +63,53 @@ pub mod quartz {
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
         timeframe_in_seconds: u64,
-        next_timeframe_reset_timestamp: u64
+        next_timeframe_reset_timestamp: u64,
     ) -> Result<()> {
         upgrade_vault_handler(
-            ctx, 
-            spend_limit_per_transaction, 
-            spend_limit_per_timeframe, 
+            ctx,
+            spend_limit_per_transaction,
+            spend_limit_per_timeframe,
             timeframe_in_seconds,
-            next_timeframe_reset_timestamp
+            next_timeframe_reset_timestamp,
         )
     }
 
     // Balance
 
     pub fn deposit<'info>(
-        ctx: Context<'_, '_, '_, 'info, Deposit<'info>>, 
-        amount_base_units: u64, 
+        ctx: Context<'_, '_, '_, 'info, Deposit<'info>>,
+        amount_base_units: u64,
         drift_market_index: u16,
-        reduce_only: bool
+        reduce_only: bool,
     ) -> Result<()> {
-        deposit_handler(
-            ctx, 
-            amount_base_units, 
-            drift_market_index, 
-            reduce_only
-        )
+        deposit_handler(ctx, amount_base_units, drift_market_index, reduce_only)
     }
 
     pub fn fulfil_deposit<'info>(
-        ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>, 
+        ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
         amount_base_units: u64,
         drift_market_index: u16,
-        reduce_only: bool
+        reduce_only: bool,
     ) -> Result<()> {
-        fulfil_deposit_handler(
-            ctx, 
-            amount_base_units, 
-            drift_market_index, 
-            reduce_only
-        )
+        fulfil_deposit_handler(ctx, amount_base_units, drift_market_index, reduce_only)
     }
 
     pub fn withdraw<'info>(
-        ctx: Context<'_, '_, '_, 'info, Withdraw<'info>>, 
-        amount_base_units: u64, 
+        ctx: Context<'_, '_, '_, 'info, Withdraw<'info>>,
+        amount_base_units: u64,
         drift_market_index: u16,
-        reduce_only: bool
+        reduce_only: bool,
     ) -> Result<()> {
-        withdraw_handler(
-            ctx, 
-            amount_base_units, 
-            drift_market_index, 
-            reduce_only
-        )
+        withdraw_handler(ctx, amount_base_units, drift_market_index, reduce_only)
     }
 
     pub fn initiate_withdraw<'info>(
         ctx: Context<'_, '_, '_, 'info, InitiateWithdraw<'info>>,
         amount_base_units: u64,
         drift_market_index: u16,
-        reduce_only: bool
+        reduce_only: bool,
     ) -> Result<()> {
-        initiate_withdraw_handler(
-            ctx, 
-            amount_base_units, 
-            drift_market_index, 
-            reduce_only
-        )
+        initiate_withdraw_handler(ctx, amount_base_units, drift_market_index, reduce_only)
     }
 
     pub fn fulfil_withdraw<'info>(
@@ -143,7 +123,7 @@ pub mod quartz {
     pub fn start_spend<'info>(
         ctx: Context<'_, '_, 'info, 'info, StartSpend<'info>>,
         amount_usdc_base_units: u64,
-        spend_fee: bool
+        spend_fee: bool,
     ) -> Result<()> {
         start_spend_handler(ctx, amount_usdc_base_units, spend_fee)
     }
@@ -159,14 +139,14 @@ pub mod quartz {
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
         timeframe_in_seconds: u64,
-        next_timeframe_reset_timestamp: u64
+        next_timeframe_reset_timestamp: u64,
     ) -> Result<()> {
         adjust_spend_limits_handler(
-            ctx, 
-            spend_limit_per_transaction, 
-            spend_limit_per_timeframe, 
+            ctx,
+            spend_limit_per_transaction,
+            spend_limit_per_timeframe,
             timeframe_in_seconds,
-            next_timeframe_reset_timestamp
+            next_timeframe_reset_timestamp,
         )
     }
 
@@ -175,14 +155,14 @@ pub mod quartz {
         spend_limit_per_transaction: u64,
         spend_limit_per_timeframe: u64,
         timeframe_in_seconds: u64,
-        next_timeframe_reset_timestamp: u64
+        next_timeframe_reset_timestamp: u64,
     ) -> Result<()> {
         initiate_spend_limits_handler(
-            ctx, 
-            spend_limit_per_transaction, 
-            spend_limit_per_timeframe, 
-            timeframe_in_seconds, 
-            next_timeframe_reset_timestamp
+            ctx,
+            spend_limit_per_transaction,
+            spend_limit_per_timeframe,
+            timeframe_in_seconds,
+            next_timeframe_reset_timestamp,
         )
     }
 
@@ -203,19 +183,13 @@ pub mod quartz {
         ctx: Context<'_, '_, 'info, 'info, DepositCollateralRepay<'info>>,
         deposit_market_index: u16,
     ) -> Result<()> {
-        deposit_collateral_repay_handler(
-            ctx, 
-            deposit_market_index
-        )
+        deposit_collateral_repay_handler(ctx, deposit_market_index)
     }
 
     pub fn withdraw_collateral_repay<'info>(
         ctx: Context<'_, '_, 'info, 'info, WithdrawCollateralRepay<'info>>,
-        withdraw_market_index: u16
+        withdraw_market_index: u16,
     ) -> Result<()> {
-        withdraw_collateral_repay_handler(
-            ctx, 
-            withdraw_market_index
-        )
+        withdraw_collateral_repay_handler(ctx, withdraw_market_index)
     }
 }
