@@ -112,6 +112,14 @@ pub struct WithdrawCollateralRepay<'info> {
         close = caller
     )]
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
+
+    /// CHECK: Safe once seeds are checked
+    #[account(
+        mut,
+        seeds = [b"rent_float".as_ref()],
+        bump
+    )]
+    pub rent_float: Option<UncheckedAccount<'info>>,
 }
 
 pub fn withdraw_collateral_repay_handler<'info>(

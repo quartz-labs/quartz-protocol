@@ -1,38 +1,30 @@
+use crate::{
+    check,
+    config::{
+        QuartzError, DOMAIN_BASE, PROVIDER_BASE_ADDRESS, QUARTZ_CALLER_BASE_ADDRESS, SPEND_CALLER,
+        USDC_MINT,
+    },
+    state::Vault,
+    utils::evm_address_to_solana,
+};
 use anchor_lang::{
     prelude::*,
     solana_program::sysvar::instructions::{
-        self,
-        load_current_index_checked, 
-        load_instruction_at_checked
-    }, Discriminator
+        self, load_current_index_checked, load_instruction_at_checked,
+    },
+    Discriminator,
 };
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{
-        TokenInterface, 
-        TokenAccount, 
-        Mint,
-        CloseAccount,
-        close_account
-    }
-};
-use solana_program::instruction::Instruction;
-use token_messenger_minter::{
-    cpi::{
-        accounts::DepositForBurnContext, 
-        deposit_for_burn_with_caller
-    },
-    program::TokenMessengerMinter, 
-    token_messenger::DepositForBurnWithCallerParams
+    token_interface::{close_account, CloseAccount, Mint, TokenAccount, TokenInterface},
 };
 use message_transmitter::program::MessageTransmitter;
-use crate::{
-    check, 
-    config::{QuartzError, DOMAIN_BASE, PROVIDER_BASE_ADDRESS, QUARTZ_CALLER_BASE_ADDRESS, SPEND_CALLER, USDC_MARKET_INDEX}, 
-    state::Vault, 
-    utils::{evm_address_to_solana, get_drift_market}
+use solana_program::instruction::Instruction;
+use token_messenger_minter::{
+    cpi::{accounts::DepositForBurnContext, deposit_for_burn_with_caller},
+    program::TokenMessengerMinter,
+    token_messenger::DepositForBurnWithCallerParams,
 };
-
 
 #[derive(Accounts)]
 pub struct CompleteSpend<'info> {
@@ -62,7 +54,10 @@ pub struct CompleteSpend<'info> {
     )]
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = usdc_mint.key().eq(&USDC_MINT)
+    )]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// CHECK: Safe once address is correct
@@ -98,7 +93,7 @@ pub struct CompleteSpend<'info> {
 
     /// CHECK: This account is passed through to the Circle CPI, which performs the security checks
     pub event_authority: UncheckedAccount<'info>,
-    
+
     pub message_transmitter_program: Program<'info, MessageTransmitter>,
 
     pub token_messenger_minter_program: Program<'info, TokenMessengerMinter>,
@@ -114,46 +109,27 @@ pub struct CompleteSpend<'info> {
     pub system_program: Program<'info, System>,
 }
 
-
 pub fn complete_spend_handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, CompleteSpend<'info>>
+    ctx: Context<'_, '_, '_, 'info, CompleteSpend<'info>>,
 ) -> Result<()> {
-    let index: usize = load_current_index_checked(
-        &ctx.accounts.instructions.to_account_info()
-    )?.into();
-    let start_instruction = load_instruction_at_checked(
-        index - 1, 
-        &ctx.accounts.instructions.to_account_info()
-    )?;
+    let index: usize =
+        load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
+    let start_instruction =
+        load_instruction_at_checked(index - 1, &ctx.accounts.instructions.to_account_info())?;
     validate_start_spend_ix(&start_instruction)?;
-    
-    // Validate USDC market index and mint
-    let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
-    check!(
-        &ctx.accounts.usdc_mint.key().eq(&drift_market.mint),
-        QuartzError::InvalidMint
-    );
 
     // Bridge USDC to Base through Circle CPI taking amount from spend mule
     let bridge_rent_payer_bump = ctx.bumps.bridge_rent_payer;
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let vault_seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
-    let bridge_rent_payer_seeds = &[
-        b"bridge_rent_payer".as_ref(),
-        &[bridge_rent_payer_bump]
-    ];
-    let signer_seeds_bridge_rent_payer = &[
-        &bridge_rent_payer_seeds[..],
-        &vault_seeds[..]
-    ];
+    let vault_seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
+    let bridge_rent_payer_seeds = &[b"bridge_rent_payer".as_ref(), &[bridge_rent_payer_bump]];
+    let signer_seeds_bridge_rent_payer = &[&bridge_rent_payer_seeds[..], &vault_seeds[..]];
 
     let bridge_cpi_ctx = CpiContext::new_with_signer(
-        ctx.accounts.token_messenger_minter_program.to_account_info(), 
+        ctx.accounts
+            .token_messenger_minter_program
+            .to_account_info(),
         DepositForBurnContext {
             owner: ctx.accounts.vault.to_account_info(),
             event_rent_payer: ctx.accounts.bridge_rent_payer.to_account_info(),
@@ -167,13 +143,19 @@ pub fn complete_spend_handler<'info>(
             burn_token_mint: ctx.accounts.usdc_mint.to_account_info(),
             message_sent_event_data: ctx.accounts.message_sent_event_data.to_account_info(),
             message_transmitter_program: ctx.accounts.message_transmitter_program.to_account_info(),
-            token_messenger_minter_program: ctx.accounts.token_messenger_minter_program.to_account_info(),
+            token_messenger_minter_program: ctx
+                .accounts
+                .token_messenger_minter_program
+                .to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
             event_authority: ctx.accounts.event_authority.to_account_info(),
-            program: ctx.accounts.token_messenger_minter_program.to_account_info()
-        }, 
-        signer_seeds_bridge_rent_payer
+            program: ctx
+                .accounts
+                .token_messenger_minter_program
+                .to_account_info(),
+        },
+        signer_seeds_bridge_rent_payer,
     );
 
     let provider_base_address_solana = evm_address_to_solana(PROVIDER_BASE_ADDRESS)?;
@@ -184,7 +166,7 @@ pub fn complete_spend_handler<'info>(
         amount: amount_usdc_base_units,
         destination_domain: DOMAIN_BASE,
         mint_recipient: provider_base_address_solana,
-        destination_caller: quartz_caller_base_address_solana
+        destination_caller: quartz_caller_base_address_solana,
     };
 
     deposit_for_burn_with_caller(bridge_cpi_ctx, bridge_cpi_params)?;
@@ -199,7 +181,7 @@ pub fn complete_spend_handler<'info>(
             destination: ctx.accounts.spend_caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
-        signer_seeds_vault
+        signer_seeds_vault,
     );
     close_account(cpi_ctx_close)?;
 
@@ -213,8 +195,7 @@ pub fn validate_start_spend_ix(start_spend: &Instruction) -> Result<()> {
     );
 
     check!(
-        start_spend.data[..8]
-            .eq(&crate::instruction::StartSpend::DISCRIMINATOR),
+        start_spend.data[..8].eq(&crate::instruction::StartSpend::DISCRIMINATOR),
         QuartzError::IllegalSpendInstructions
     );
 

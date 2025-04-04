@@ -1,6 +1,6 @@
 use crate::{
     check,
-    config::QuartzError,
+    config::{QuartzError, WSOL_MINT},
     state::{Vault, WithdrawOrder},
     utils::{close_time_lock, get_drift_market, validate_time_lock},
 };
@@ -21,6 +21,7 @@ use drift::{
         user::{User as DriftUser, UserStats as DriftUserStats},
     },
 };
+use solana_program::{program::invoke_signed, system_instruction};
 
 #[derive(Accounts)]
 pub struct FulfilWithdraw<'info> {
@@ -44,13 +45,13 @@ pub struct FulfilWithdraw<'info> {
 
     #[account(
         init,
-        seeds = [vault.key().as_ref(), spl_mint.key().as_ref()],
+        seeds = [b"withdraw_mule".as_ref(), owner.key().as_ref()],
         bump,
-        payer = caller,
+        payer = rent_float,
         token::mint = spl_mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Any account, once it has a vault and matches the order
     #[account(
@@ -107,6 +108,14 @@ pub struct FulfilWithdraw<'info> {
     pub drift_program: Program<'info, Drift>,
 
     pub system_program: Program<'info, System>,
+
+    /// CHECK: Safe once seeds are checked
+    #[account(
+        mut,
+        seeds = [b"rent_float".as_ref()],
+        bump
+    )]
+    pub rent_float: UncheckedAccount<'info>,
 }
 
 pub fn fulfil_withdraw_handler<'info>(
@@ -126,12 +135,6 @@ pub fn fulfil_withdraw_handler<'info>(
     let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
     let signer_seeds = &[&seeds[..]];
 
-    // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
-    check!(
-        ctx.accounts.vault_spl.amount == 0,
-        QuartzError::InvalidStartingVaultBalance
-    );
-
     // Drift Withdraw CPI
     let mut cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
@@ -142,45 +145,23 @@ pub fn fulfil_withdraw_handler<'info>(
             authority: ctx.accounts.vault.to_account_info(),
             spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
             drift_signer: ctx.accounts.drift_signer.to_account_info(),
-            user_token_account: ctx.accounts.vault_spl.to_account_info(),
+            user_token_account: ctx.accounts.mule.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
         signer_seeds,
     );
-
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
-
     drift_withdraw(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
 
-    // Transfer tokens to owner's ATA, getting the true amount withdrawn (in case return_only prevented full withdraw)
-    ctx.accounts.vault_spl.reload()?;
-    let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
-    transfer_checked(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            TransferChecked {
-                from: ctx.accounts.vault_spl.to_account_info(),
-                to: ctx.accounts.owner_spl.to_account_info(),
-                authority: ctx.accounts.vault.to_account_info(),
-                mint: ctx.accounts.spl_mint.to_account_info(),
-            },
-            signer_seeds,
-        ),
-        true_amount_withdrawn,
-        ctx.accounts.spl_mint.decimals,
-    )?;
+    // Get true amount withdrawn in case reduce_only prevented full withdraw
+    ctx.accounts.mule.reload()?;
+    let true_amount_withdrawn = ctx.accounts.mule.amount;
 
-    // Close vault's ATA
-    let cpi_ctx_close = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        CloseAccount {
-            account: ctx.accounts.vault_spl.to_account_info(),
-            destination: ctx.accounts.owner.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
-        },
-        signer_seeds,
-    );
-    close_account(cpi_ctx_close)?;
+    if ctx.accounts.spl_mint.key().eq(&WSOL_MINT) {
+        transfer_lamports(&ctx, signer_seeds, true_amount_withdrawn)?;
+    } else {
+        transfer_spl(&ctx, signer_seeds, true_amount_withdrawn)?;
+    }
 
     Ok(())
 }
@@ -204,4 +185,79 @@ fn get_order_data<'info>(
     )?;
 
     Ok((amount_base_units, drift_market_index, reduce_only))
+}
+
+fn transfer_lamports<'info>(
+    ctx: &Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
+    vault_signer: &[&[&[u8]]],
+    true_amount_withdrawn: u64,
+) -> Result<()> {
+    // Close wSOL mule, unwrapping all SOL to rent_float
+    let cpi_ctx_close = CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        CloseAccount {
+            account: ctx.accounts.mule.to_account_info(),
+            destination: ctx.accounts.rent_float.to_account_info(),
+            authority: ctx.accounts.vault.to_account_info(),
+        },
+        vault_signer,
+    );
+    close_account(cpi_ctx_close)?;
+
+    // Send true_amount_withdrawn to the owner, leaving just the ATA rent remaining
+    let rent_float_bump = ctx.bumps.rent_float;
+    let seeds = &[b"rent_float".as_ref(), &[rent_float_bump]];
+    let rent_float_signer = &[&seeds[..]];
+
+    invoke_signed(
+        &system_instruction::transfer(
+            &ctx.accounts.rent_float.key(),
+            &ctx.accounts.owner.key(),
+            true_amount_withdrawn,
+        ),
+        &[
+            ctx.accounts.rent_float.to_account_info(),
+            ctx.accounts.owner.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+        ],
+        rent_float_signer,
+    )?;
+
+    Ok(())
+}
+
+fn transfer_spl<'info>(
+    ctx: &Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
+    vault_signer: &[&[&[u8]]],
+    true_amount_withdrawn: u64,
+) -> Result<()> {
+    // Transfer all tokens from mule to owner_spl
+    transfer_checked(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.mule.to_account_info(),
+                to: ctx.accounts.owner_spl.to_account_info(),
+                authority: ctx.accounts.vault.to_account_info(),
+                mint: ctx.accounts.spl_mint.to_account_info(),
+            },
+            vault_signer,
+        ),
+        true_amount_withdrawn,
+        ctx.accounts.spl_mint.decimals,
+    )?;
+
+    // Close mule
+    let cpi_ctx_close = CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        CloseAccount {
+            account: ctx.accounts.mule.to_account_info(),
+            destination: ctx.accounts.rent_float.to_account_info(),
+            authority: ctx.accounts.vault.to_account_info(),
+        },
+        vault_signer,
+    );
+    close_account(cpi_ctx_close)?;
+
+    Ok(())
 }

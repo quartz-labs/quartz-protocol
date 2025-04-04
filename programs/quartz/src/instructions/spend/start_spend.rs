@@ -1,33 +1,32 @@
+use crate::{
+    check,
+    config::{
+        QuartzError, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION, USDC_MARKET_INDEX,
+        USDC_MINT,
+    },
+    state::Vault,
+};
 use anchor_lang::{
-    prelude::*, solana_program::sysvar::instructions::{
-        self,
-        load_current_index_checked, 
-        load_instruction_at_checked
-    }, Discriminator
+    prelude::*,
+    solana_program::sysvar::instructions::{
+        self, load_current_index_checked, load_instruction_at_checked,
+    },
+    Discriminator,
 };
 use anchor_spl::{
-    associated_token::AssociatedToken, 
-    token_interface::{
-        Mint, 
-        TokenAccount, 
-        TokenInterface, 
-        TransferChecked,
-        transfer_checked
-    }
+    associated_token::AssociatedToken,
+    token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 use drift::{
-    program::Drift,
-    cpi::withdraw as drift_withdraw, 
     cpi::accounts::Withdraw as DriftWithdraw,
+    cpi::withdraw as drift_withdraw,
+    program::Drift,
     state::{
-        state::State as DriftState, 
-        user::{User as DriftUser, UserStats as DriftUserStats}
-    }
+        state::State as DriftState,
+        user::{User as DriftUser, UserStats as DriftUserStats},
+    },
 };
 use solana_program::instruction::Instruction;
-use crate::{
-    check, config::{QuartzError, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION, USDC_MARKET_INDEX}, state::Vault, utils::get_drift_market
-};
 
 #[event_cpi]
 #[derive(Accounts)]
@@ -67,7 +66,10 @@ pub struct StartSpend<'info> {
     )]
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = usdc_mint.key().eq(&USDC_MINT)
+    )]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
@@ -77,7 +79,7 @@ pub struct StartSpend<'info> {
         bump
     )]
     pub drift_user: AccountLoader<'info, DriftUser>,
-    
+
     #[account(
         mut,
         seeds = [b"user_stats".as_ref(), vault.key().as_ref()],
@@ -97,7 +99,7 @@ pub struct StartSpend<'info> {
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
     pub spot_market_vault: UncheckedAccount<'info>,
-    
+
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     pub drift_signer: UncheckedAccount<'info>,
 
@@ -111,39 +113,25 @@ pub struct StartSpend<'info> {
     #[account(address = instructions::ID)]
     pub instructions: UncheckedAccount<'info>,
 
-    pub system_program: Program<'info, System>
+    pub system_program: Program<'info, System>,
 }
 
 pub fn start_spend_handler<'info>(
-    mut ctx: Context<'_, '_, '_, 'info, StartSpend<'info>>, 
+    mut ctx: Context<'_, '_, '_, 'info, StartSpend<'info>>,
     amount_usdc_base_units: u64,
-    spend_fee: bool
+    spend_fee: bool,
 ) -> Result<()> {
-    let index: usize = load_current_index_checked(
-        &ctx.accounts.instructions.to_account_info()
-    )?.into();
-    let complete_instruction = load_instruction_at_checked(
-        index + 1, 
-        &ctx.accounts.instructions.to_account_info()
-    )?;
+    let index: usize =
+        load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
+    let complete_instruction =
+        load_instruction_at_checked(index + 1, &ctx.accounts.instructions.to_account_info())?;
     validate_complete_spend_ix(&ctx, &complete_instruction)?;
 
-    // Validate market index and mint
-    let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
-    check!(
-        &ctx.accounts.usdc_mint.key().eq(&drift_market.mint),
-        QuartzError::InvalidMint
-    );
-
     process_spend_limits(&mut ctx, amount_usdc_base_units)?;
-    
+
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
+    let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
     let signer_seeds = &[&seeds[..]];
 
     // Use Drift Withdraw CPI to transfer USDC to spend mule
@@ -159,29 +147,29 @@ pub fn start_spend_handler<'info>(
             user_token_account: ctx.accounts.mule.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
-        signer_seeds
+        signer_seeds,
     );
 
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
     drift_withdraw(cpi_ctx, USDC_MARKET_INDEX, amount_usdc_base_units, false)?;
 
-    // If taking a fee, transfer fee from mule to spend caller
+    // If taking a fee, transfer cut of amount from mule to spend caller
     if spend_fee {
         let fee_amount = (amount_usdc_base_units * SPEND_FEE_BPS) / 10_000;
-        
+
         transfer_checked(
             CpiContext::new(
-                ctx.accounts.token_program.to_account_info(), 
-                TransferChecked { 
-                    from: ctx.accounts.mule.to_account_info(), 
-                    to: ctx.accounts.spend_fee_destination.to_account_info(), 
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.mule.to_account_info(),
+                    to: ctx.accounts.spend_fee_destination.to_account_info(),
                     authority: ctx.accounts.spend_caller.to_account_info(),
                     mint: ctx.accounts.usdc_mint.to_account_info(),
-                }
+                },
             ),
             fee_amount,
-            ctx.accounts.usdc_mint.decimals
+            ctx.accounts.usdc_mint.decimals,
         )?;
     }
 
@@ -190,7 +178,7 @@ pub fn start_spend_handler<'info>(
 
 pub fn validate_complete_spend_ix<'info>(
     ctx: &Context<'_, '_, '_, 'info, StartSpend<'info>>,
-    complete_spend: &Instruction
+    complete_spend: &Instruction,
 ) -> Result<()> {
     check!(
         complete_spend.program_id.eq(&crate::id()),
@@ -198,8 +186,7 @@ pub fn validate_complete_spend_ix<'info>(
     );
 
     check!(
-        complete_spend.data[..8]
-            .eq(&crate::instruction::CompleteSpend::DISCRIMINATOR),
+        complete_spend.data[..8].eq(&crate::instruction::CompleteSpend::DISCRIMINATOR),
         QuartzError::IllegalSpendInstructions
     );
 
@@ -221,13 +208,10 @@ pub fn validate_complete_spend_ix<'info>(
 
 fn process_spend_limits<'info>(
     ctx: &mut Context<'_, '_, '_, 'info, StartSpend<'info>>,
-    amount_usdc_base_units: u64
+    amount_usdc_base_units: u64,
 ) -> Result<()> {
     let current_timestamp_raw = Clock::get()?.unix_timestamp;
-    check!(
-        current_timestamp_raw > 0,
-        QuartzError::InvalidTimestamp
-    );
+    check!(current_timestamp_raw > 0, QuartzError::InvalidTimestamp);
     let current_timestamp = current_timestamp_raw as u64;
 
     check!(
@@ -248,10 +232,14 @@ fn process_spend_limits<'info>(
             .checked_mul(ctx.accounts.vault.timeframe_in_seconds)
             .ok_or(QuartzError::MathOverflow)?;
 
-        ctx.accounts.vault.next_timeframe_reset_timestamp = ctx.accounts.vault.next_timeframe_reset_timestamp
+        ctx.accounts.vault.next_timeframe_reset_timestamp = ctx
+            .accounts
+            .vault
+            .next_timeframe_reset_timestamp
             .checked_add(seconds_to_add)
             .ok_or(QuartzError::MathOverflow)?;
-        ctx.accounts.vault.remaining_spend_limit_per_timeframe = ctx.accounts.vault.spend_limit_per_timeframe;
+        ctx.accounts.vault.remaining_spend_limit_per_timeframe =
+            ctx.accounts.vault.spend_limit_per_timeframe;
     }
 
     check!(
@@ -260,7 +248,10 @@ fn process_spend_limits<'info>(
     );
 
     // Adjust remaining spend limit
-    ctx.accounts.vault.remaining_spend_limit_per_timeframe = ctx.accounts.vault.remaining_spend_limit_per_timeframe
+    ctx.accounts.vault.remaining_spend_limit_per_timeframe = ctx
+        .accounts
+        .vault
+        .remaining_spend_limit_per_timeframe
         .checked_sub(amount_usdc_base_units)
         .ok_or(QuartzError::InsufficientTimeframeSpendLimit)?;
 
