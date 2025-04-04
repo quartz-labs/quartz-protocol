@@ -66,7 +66,7 @@ pub struct FulfilWithdraw<'info> {
         associated_token::authority = owner,
         associated_token::token_program = token_program
     )]
-    pub owner_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub owner_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
 
     pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -231,13 +231,18 @@ fn transfer_spl<'info>(
     vault_signer: &[&[&[u8]]],
     true_amount_withdrawn: u64,
 ) -> Result<()> {
+    let owner_spl = match ctx.accounts.owner_spl.as_ref() {
+        Some(owner_spl) => owner_spl,
+        None => return Err(QuartzError::InvalidOwnerSplWSOL.into()), // owner_spl is only optional for wSOL
+    };
+
     // Transfer all tokens from mule to owner_spl
     transfer_checked(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             TransferChecked {
                 from: ctx.accounts.mule.to_account_info(),
-                to: ctx.accounts.owner_spl.to_account_info(),
+                to: owner_spl.to_account_info(),
                 authority: ctx.accounts.vault.to_account_info(),
                 mint: ctx.accounts.spl_mint.to_account_info(),
             },

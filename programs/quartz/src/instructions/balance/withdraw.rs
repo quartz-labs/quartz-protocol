@@ -1,27 +1,20 @@
+use crate::{check, config::QuartzError, state::Vault, utils::get_drift_market};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{
+        close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
         TransferChecked,
-        transfer_checked,
-        TokenInterface, 
-        TokenAccount, 
-        Mint,
-        CloseAccount,
-        close_account
-    }
+    },
 };
 use drift::{
-    program::Drift,
-    cpi::withdraw as drift_withdraw, 
     cpi::accounts::Withdraw as DriftWithdraw,
+    cpi::withdraw as drift_withdraw,
+    program::Drift,
     state::{
-        state::State as DriftState, 
-        user::{User as DriftUser, UserStats as DriftUserStats}
-    }
-};
-use crate::{
-    check, config::QuartzError, state::Vault, utils::get_drift_market
+        state::State as DriftState,
+        user::{User as DriftUser, UserStats as DriftUserStats},
+    },
 };
 
 #[derive(Accounts)]
@@ -64,7 +57,7 @@ pub struct Withdraw<'info> {
         bump
     )]
     pub drift_user: AccountLoader<'info, DriftUser>,
-    
+
     #[account(
         mut,
         seeds = [b"user_stats".as_ref(), vault.key().as_ref()],
@@ -84,7 +77,7 @@ pub struct Withdraw<'info> {
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
     pub spot_market_vault: UncheckedAccount<'info>,
-    
+
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     pub drift_signer: UncheckedAccount<'info>,
 
@@ -98,10 +91,10 @@ pub struct Withdraw<'info> {
 }
 
 pub fn withdraw_handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, Withdraw<'info>>, 
+    ctx: Context<'_, '_, '_, 'info, Withdraw<'info>>,
     amount_base_units: u64,
     drift_market_index: u16,
-    reduce_only: bool
+    reduce_only: bool,
 ) -> Result<()> {
     // Validate market index and mint
     let drift_market = get_drift_market(drift_market_index)?;
@@ -109,14 +102,10 @@ pub fn withdraw_handler<'info>(
         &ctx.accounts.spl_mint.key().eq(&drift_market.mint),
         QuartzError::InvalidMint
     );
-    
+
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let seeds = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
+    let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
     let signer_seeds = &[&seeds[..]];
 
     // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
@@ -138,7 +127,7 @@ pub fn withdraw_handler<'info>(
             user_token_account: ctx.accounts.vault_spl.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
-        signer_seeds
+        signer_seeds,
     );
 
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
@@ -150,17 +139,17 @@ pub fn withdraw_handler<'info>(
     let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
     transfer_checked(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(), 
-            TransferChecked { 
-                from: ctx.accounts.vault_spl.to_account_info(), 
-                to: ctx.accounts.owner_spl.to_account_info(), 
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.vault_spl.to_account_info(),
+                to: ctx.accounts.owner_spl.to_account_info(),
                 authority: ctx.accounts.vault.to_account_info(),
                 mint: ctx.accounts.spl_mint.to_account_info(),
-            }, 
-            signer_seeds
+            },
+            signer_seeds,
         ),
         true_amount_withdrawn,
-        ctx.accounts.spl_mint.decimals
+        ctx.accounts.spl_mint.decimals,
     )?;
 
     // Close vault's ATA
@@ -171,7 +160,7 @@ pub fn withdraw_handler<'info>(
             destination: ctx.accounts.owner.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
-        signer_seeds
+        signer_seeds,
     );
     close_account(cpi_ctx_close)?;
 

@@ -76,4 +76,8 @@ pub enum QuartzError {
     TimeLockNotReleased,
     #[msg("Time lock owner does not match")]
     InvalidTimeLockOwner,
+    #[msg("Token account is not owned by the token program or has invalid data")]
+    InvalidTokenAccount,
+    #[msg("owner_spl is required if spl_mint is not wSOL")]
+    InvalidOwnerSplWSOL,
 }
