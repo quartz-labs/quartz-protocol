@@ -1,10 +1,8 @@
 use crate::{
     check,
-    config::{
-        QuartzError, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION, USDC_MARKET_INDEX,
-        USDC_MINT,
-    },
+    config::{QuartzError, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION, USDC_MARKET_INDEX},
     state::Vault,
+    utils::get_drift_market,
 };
 use anchor_lang::{
     prelude::*,
@@ -66,10 +64,7 @@ pub struct StartSpend<'info> {
     )]
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(
-        mut,
-        constraint = usdc_mint.key().eq(&USDC_MINT)
-    )]
+    #[account(mut)]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
@@ -126,6 +121,13 @@ pub fn start_spend_handler<'info>(
     let complete_instruction =
         load_instruction_at_checked(index + 1, &ctx.accounts.instructions.to_account_info())?;
     validate_complete_spend_ix(&ctx, &complete_instruction)?;
+
+    // Manually check mint in handler to avoid Anchor stack overflow
+    let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
+    check!(
+        &ctx.accounts.usdc_mint.key().eq(&drift_market.mint),
+        QuartzError::InvalidMint
+    );
 
     process_spend_limits(&mut ctx, amount_usdc_base_units)?;
 
