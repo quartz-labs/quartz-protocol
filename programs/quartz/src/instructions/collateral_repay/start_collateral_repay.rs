@@ -140,7 +140,7 @@ pub fn validate_instruction_order(
 }
 
 #[inline(never)]
-fn validate_user_accounts_context<'info>(
+fn validate_user_accounts_context(
     deposit_instruction: &Instruction,
     withdraw_instruction: &Instruction,
 ) -> Result<()> {

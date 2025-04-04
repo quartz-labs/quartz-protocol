@@ -37,14 +37,14 @@ pub fn normalize_price_exponents(
 
     if exponent_difference > 0 {
         let amount_b_normalized = (price_b as u128)
-            .checked_mul(10_u128.pow(exponent_difference.unsigned_abs() as u32))
+            .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
             .ok_or(QuartzError::MathOverflow)?;
-        return Ok((price_a as u128, amount_b_normalized));
+        Ok((price_a as u128, amount_b_normalized))
     } else {
         let amount_a_normalized = (price_a as u128)
-            .checked_mul(10_u128.pow(exponent_difference.unsigned_abs() as u32))
+            .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
             .ok_or(QuartzError::MathOverflow)?;
-        return Ok((amount_a_normalized, price_b as u128));
+        Ok((amount_a_normalized, price_b as u128))
     }
 }
 

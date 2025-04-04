@@ -1,14 +1,10 @@
+use crate::config::RENT_RECLAIMER;
 use anchor_lang::prelude::*;
 use message_transmitter::{
-    cpi::{
-        accounts::ReclaimEventAccountContext, 
-        reclaim_event_account
-    }, 
-    instructions::ReclaimEventAccountParams, 
-    program::MessageTransmitter
+    cpi::{accounts::ReclaimEventAccountContext, reclaim_event_account},
+    instructions::ReclaimEventAccountParams,
+    program::MessageTransmitter,
 };
-use crate::config::RENT_RECLAIMER;
-
 
 #[derive(Accounts)]
 pub struct ReclaimBridgeRent<'info> {
@@ -24,28 +20,24 @@ pub struct ReclaimBridgeRent<'info> {
         bump
     )]
     pub bridge_rent_payer: UncheckedAccount<'info>,
-    
+
     /// CHECK: This account is passed through to the Circle CPI, which performs the security checks
     #[account(mut)]
     pub message_transmitter: UncheckedAccount<'info>,
-    
+
     /// CHECK: This account is passed through to the Circle CPI, which performs the security checks
     #[account(mut)]
     pub message_sent_event_data: UncheckedAccount<'info>,
 
-    pub cctp_message_transmitter: Program<'info, MessageTransmitter>
+    pub cctp_message_transmitter: Program<'info, MessageTransmitter>,
 }
-
 
 pub fn reclaim_bridge_rent_handler(
     ctx: Context<ReclaimBridgeRent>,
-    attestation: Vec<u8>
+    attestation: Vec<u8>,
 ) -> Result<()> {
     let bridge_rent_payer_bump = ctx.bumps.bridge_rent_payer;
-    let bridge_rent_payer_seeds = &[
-        b"bridge_rent_payer".as_ref(),
-        &[bridge_rent_payer_bump]
-    ];
+    let bridge_rent_payer_seeds = &[b"bridge_rent_payer".as_ref(), &[bridge_rent_payer_bump]];
     let signer_seeds = &[&bridge_rent_payer_seeds[..]];
 
     let reclaim_cpi_ctx = CpiContext::new_with_signer(
@@ -55,12 +47,10 @@ pub fn reclaim_bridge_rent_handler(
             message_transmitter: ctx.accounts.message_transmitter.to_account_info(),
             message_sent_event_data: ctx.accounts.message_sent_event_data.to_account_info(),
         },
-        signer_seeds
+        signer_seeds,
     );
 
-    let reclaim_cpi_params = ReclaimEventAccountParams {
-        attestation: attestation,
-    };
+    let reclaim_cpi_params = ReclaimEventAccountParams { attestation };
 
     reclaim_event_account(reclaim_cpi_ctx, reclaim_cpi_params)?;
 

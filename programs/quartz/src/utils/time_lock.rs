@@ -83,7 +83,7 @@ pub fn allocate_time_lock_owner_payer<'info>(
     let required_lamports = rent.minimum_balance(space);
 
     invoke(
-        &system_instruction::transfer(&owner.key(), &time_lock.key(), required_lamports as u64),
+        &system_instruction::transfer(&owner.key(), &time_lock.key(), required_lamports),
         &[
             owner.to_account_info(),
             time_lock.to_account_info(),
@@ -146,7 +146,7 @@ where
         owner
     } else {
         validate_time_lock_rent_payer(time_lock_rent_payer)?;
-        &time_lock_rent_payer
+        time_lock_rent_payer
     };
 
     // Transfer all rent to payer
