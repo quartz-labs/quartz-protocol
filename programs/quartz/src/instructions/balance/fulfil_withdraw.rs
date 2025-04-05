@@ -1,19 +1,15 @@
 use crate::{
     check,
-    config::{QuartzError, PUBKEY_SIZE, U64_SIZE, WSOL_MINT},
+    config::{QuartzError, WSOL_MINT},
     state::{Vault, WithdrawOrder},
     utils::{close_time_lock, get_drift_market, validate_time_lock},
 };
-use anchor_lang::{
-    prelude::*,
-    system_program::{create_account, CreateAccount},
-};
+use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::TokenAccount,
     token_interface::{
-        self, close_account, transfer_checked, CloseAccount, Mint,
-        TokenAccount as TokenInterfaceAccount, TokenInterface, TransferChecked,
+        close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
+        TransferChecked,
     },
 };
 use drift::{
@@ -25,7 +21,7 @@ use drift::{
         user::{User as DriftUser, UserStats as DriftUserStats},
     },
 };
-use solana_program::{program::invoke_signed, system_instruction};
+use solana_program::{program::invoke, system_instruction};
 
 #[derive(Accounts)]
 pub struct FulfilWithdraw<'info> {
@@ -47,13 +43,15 @@ pub struct FulfilWithdraw<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
-    /// CHECK: Safe once address is correct
     #[account(
-        mut,
+        init,
         seeds = [b"withdraw_mule".as_ref(), owner.key().as_ref()],
-        bump
+        bump,
+        payer = caller,
+        token::mint = spl_mint,
+        token::authority = vault
     )]
-    pub mule: UncheckedAccount<'info>,
+    pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Any account, once it has a vault and matches the order
     #[account(
@@ -68,7 +66,7 @@ pub struct FulfilWithdraw<'info> {
         associated_token::authority = owner,
         associated_token::token_program = token_program
     )]
-    pub owner_spl: Option<Box<InterfaceAccount<'info, TokenInterfaceAccount>>>,
+    pub owner_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
 
     pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -110,20 +108,16 @@ pub struct FulfilWithdraw<'info> {
     pub drift_program: Program<'info, Drift>,
 
     pub system_program: Program<'info, System>,
-
-    /// CHECK: Safe once seeds are checked
-    #[account(
-        mut,
-        seeds = [b"rent_float".as_ref()],
-        bump
-    )]
-    pub rent_float: UncheckedAccount<'info>,
 }
 
 pub fn fulfil_withdraw_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
 ) -> Result<()> {
+    msg!("[1] Start handler");
+
     let (amount_base_units, drift_market_index, reduce_only) = get_order_data(&ctx)?;
+
+    msg!("[2] Got order data");
 
     // Validate market index and mint
     let drift_market = get_drift_market(drift_market_index)?;
@@ -137,11 +131,7 @@ pub fn fulfil_withdraw_handler<'info>(
     let vault_seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
     let vault_signer = &[&vault_seeds[..]];
 
-    let rent_float_bump = ctx.bumps.rent_float;
-    let rent_float_seeds = &[b"rent_float".as_ref(), &[rent_float_bump]];
-    let rent_float_signer = &[&rent_float_seeds[..]];
-
-    init_ata(&ctx, vault_signer, rent_float_signer)?;
+    msg!("[3] Got vault signer, market index, and mint");
 
     // Drift Withdraw CPI
     let mut cpi_ctx = CpiContext::new_with_signer(
@@ -161,11 +151,16 @@ pub fn fulfil_withdraw_handler<'info>(
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
     drift_withdraw(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
 
+    msg!("[4] Drift withdraw CPI complete");
+
     // Get true amount withdrawn in case reduce_only prevented full withdraw
-    let true_amount_withdrawn = get_ata_balance(&ctx.accounts.mule)?;
+    ctx.accounts.mule.reload()?;
+    let true_amount_withdrawn = ctx.accounts.mule.amount;
+
+    msg!("[5] Got true amount withdrawn");
 
     if ctx.accounts.spl_mint.key().eq(&WSOL_MINT) {
-        transfer_lamports(&ctx, vault_signer, rent_float_signer, true_amount_withdrawn)?;
+        transfer_lamports(&ctx, vault_signer, true_amount_withdrawn)?;
     } else {
         transfer_spl(&ctx, vault_signer, true_amount_withdrawn)?;
     }
@@ -192,94 +187,40 @@ fn get_order_data(ctx: &Context<FulfilWithdraw>) -> Result<(u64, u16, bool)> {
     Ok((amount_base_units, drift_market_index, reduce_only))
 }
 
-fn init_ata(
-    ctx: &Context<FulfilWithdraw>,
-    vault_signer: &[&[&[u8]]],
-    rent_float_signer: &[&[&[u8]]],
-) -> Result<()> {
-    check!(
-        ctx.accounts.mule.data_is_empty(),
-        QuartzError::AccountAlreadyInitialized
-    );
-
-    let space = TokenAccount::LEN;
-    let rent = Rent::get()?;
-    let lamports_required = rent.minimum_balance(space);
-
-    // Create account
-    create_account(
-        CpiContext::new_with_signer(
-            ctx.accounts.system_program.to_account_info(),
-            CreateAccount {
-                from: ctx.accounts.rent_float.to_account_info(),
-                to: ctx.accounts.mule.to_account_info(),
-            },
-            rent_float_signer,
-        ),
-        lamports_required,
-        space as u64,
-        &ctx.accounts.token_program.key(),
-    )?;
-
-    // Init ATA
-    let cpi_ctx = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        token_interface::InitializeAccount3 {
-            account: ctx.accounts.mule.to_account_info(),
-            mint: ctx.accounts.spl_mint.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
-        },
-        vault_signer,
-    );
-    token_interface::initialize_account3(cpi_ctx)?;
-
-    Ok(())
-}
-
-fn get_ata_balance(ata: &AccountInfo) -> Result<u64> {
-    let data: &[u8] = &ata.try_borrow_data()?;
-    let amount_start_index = PUBKEY_SIZE + PUBKEY_SIZE;
-    let amount_bytes = &data[amount_start_index..amount_start_index + U64_SIZE];
-    let amount = u64::from_le_bytes(
-        amount_bytes
-            .try_into()
-            .expect("Failed to convert amount bytes to u64"),
-    );
-    Ok(amount)
-}
-
 fn transfer_lamports(
     ctx: &Context<FulfilWithdraw>,
     vault_signer: &[&[&[u8]]],
-    rent_float_signer: &[&[&[u8]]],
     true_amount_withdrawn: u64,
 ) -> Result<()> {
-    // Close wSOL mule, unwrapping all SOL to rent_float
+    // Close wSOL mule, unwrapping all SOL to caller
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         CloseAccount {
             account: ctx.accounts.mule.to_account_info(),
-            destination: ctx.accounts.rent_float.to_account_info(),
+            destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
         vault_signer,
     );
     close_account(cpi_ctx_close)?;
 
+    msg!("[6] Closed mule");
+
     // Send true_amount_withdrawn to the owner, leaving just the ATA rent remaining
-    invoke_signed(
+    invoke(
         &system_instruction::transfer(
-            &ctx.accounts.rent_float.key(),
-            &ctx.accounts.owner.key(),
+            ctx.accounts.caller.key,
+            ctx.accounts.owner.key,
             true_amount_withdrawn,
         ),
         &[
-            ctx.accounts.rent_float.to_account_info(),
             ctx.accounts.owner.to_account_info(),
+            ctx.accounts.caller.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
         ],
-        rent_float_signer,
     )?;
+
+    msg!("[7] Transferred lamports");
 
     Ok(())
 }
@@ -293,6 +234,8 @@ fn transfer_spl(
         Some(owner_spl) => owner_spl,
         None => return Err(QuartzError::InvalidOwnerSplWSOL.into()), // owner_spl is only optional for wSOL
     };
+
+    msg!("[6] Got owner_spl");
 
     // Transfer all tokens from mule to owner_spl
     transfer_checked(
@@ -310,17 +253,21 @@ fn transfer_spl(
         ctx.accounts.spl_mint.decimals,
     )?;
 
+    msg!("[7] Transferred tokens");
+
     // Close mule
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         CloseAccount {
             account: ctx.accounts.mule.to_account_info(),
-            destination: ctx.accounts.rent_float.to_account_info(),
+            destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
         vault_signer,
     );
     close_account(cpi_ctx_close)?;
+
+    msg!("[8] Closed mule");
 
     Ok(())
 }

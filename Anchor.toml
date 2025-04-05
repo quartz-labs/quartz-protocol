@@ -27,4 +27,4 @@ buffer_authority = "./target/deploy/recover.json"
 test = "cargo test"
 
 [test]
-startup_wait = 5000
+startup_wait = 60000
