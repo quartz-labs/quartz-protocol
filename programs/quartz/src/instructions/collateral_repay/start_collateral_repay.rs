@@ -68,13 +68,12 @@ pub struct StartCollateralRepay<'info> {
     )]
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
 
-    /// CHECK: Safe once seeds are checked
-    #[account(
-        mut,
-        seeds = [b"rent_float".as_ref()],
-        bump
-    )]
-    pub rent_float: Option<UncheckedAccount<'info>>,
+    // #[account(
+    //     mut,
+    //     seeds = [b"rent_float".as_ref()],
+    //     bump
+    // )]
+    // pub rent_float: Option<UncheckedAccount<'info>>,
 }
 
 pub fn start_collateral_repay_handler<'info>(
