@@ -216,15 +216,29 @@ fn process_spend_limits<'info>(
     check!(current_timestamp_raw > 0, QuartzError::InvalidTimestamp);
     let current_timestamp = current_timestamp_raw as u64;
 
-    check!(
-        ctx.accounts.vault.spend_limit_per_transaction >= amount_usdc_base_units,
-        QuartzError::InsufficientTransactionSpendLimit
-    );
+    if ctx.accounts.vault.spend_limit_per_transaction < amount_usdc_base_units {
+        let error_code = QuartzError::InsufficientTransactionSpendLimit;
+        anchor_lang::prelude::msg!(
+            "Error \"{}\" ({} < {}) thrown at {}:{}",
+            error_code,
+            ctx.accounts.vault.spend_limit_per_transaction,
+            amount_usdc_base_units,
+            file!(),
+            line!()
+        );
+        return Err(error_code.into());
+    }
 
-    check!(
-        ctx.accounts.vault.timeframe_in_seconds > 0,
-        QuartzError::InsufficientTimeframeSpendLimit
-    );
+    if ctx.accounts.vault.timeframe_in_seconds == 0 {
+        let error_code = QuartzError::InsufficientTimeframeSpendLimit;
+        anchor_lang::prelude::msg!(
+            "Error \"{}\" (timeframe_in_seconds == 0) thrown at {}:{}",
+            error_code,
+            file!(),
+            line!()
+        );
+        return Err(error_code.into());
+    }
 
     // If the timeframe has elapsed, incrememt it and reset spend limit
     if current_timestamp >= ctx.accounts.vault.next_timeframe_reset_timestamp {
@@ -244,10 +258,18 @@ fn process_spend_limits<'info>(
             ctx.accounts.vault.spend_limit_per_timeframe;
     }
 
-    check!(
-        ctx.accounts.vault.remaining_spend_limit_per_timeframe >= amount_usdc_base_units,
-        QuartzError::InsufficientTimeframeSpendLimit
-    );
+    if ctx.accounts.vault.remaining_spend_limit_per_timeframe < amount_usdc_base_units {
+        let error_code = QuartzError::InsufficientTimeframeSpendLimit;
+        anchor_lang::prelude::msg!(
+            "Error \"{}\" ({} < {}) thrown at {}:{}",
+            error_code,
+            ctx.accounts.vault.remaining_spend_limit_per_timeframe,
+            amount_usdc_base_units,
+            file!(),
+            line!()
+        );
+        return Err(error_code.into());
+    }
 
     // Adjust remaining spend limit
     ctx.accounts.vault.remaining_spend_limit_per_timeframe = ctx

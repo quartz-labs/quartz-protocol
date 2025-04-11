@@ -113,11 +113,7 @@ pub struct FulfilWithdraw<'info> {
 pub fn fulfil_withdraw_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
 ) -> Result<()> {
-    msg!("[1] Start handler");
-
     let (amount_base_units, drift_market_index, reduce_only) = get_order_data(&ctx)?;
-
-    msg!("[2] Got order data");
 
     // Validate market index and mint
     let drift_market = get_drift_market(drift_market_index)?;
@@ -130,8 +126,6 @@ pub fn fulfil_withdraw_handler<'info>(
     let owner = ctx.accounts.owner.key();
     let vault_seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
     let vault_signer = &[&vault_seeds[..]];
-
-    msg!("[3] Got vault signer, market index, and mint");
 
     // Drift Withdraw CPI
     let mut cpi_ctx = CpiContext::new_with_signer(
@@ -151,13 +145,9 @@ pub fn fulfil_withdraw_handler<'info>(
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
     drift_withdraw(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
 
-    msg!("[4] Drift withdraw CPI complete");
-
     // Get true amount withdrawn in case reduce_only prevented full withdraw
     ctx.accounts.mule.reload()?;
     let true_amount_withdrawn = ctx.accounts.mule.amount;
-
-    msg!("[5] Got true amount withdrawn");
 
     if ctx.accounts.spl_mint.key().eq(&WSOL_MINT) {
         transfer_lamports(&ctx, vault_signer, true_amount_withdrawn)?;
@@ -204,8 +194,6 @@ fn transfer_lamports(
     );
     close_account(cpi_ctx_close)?;
 
-    msg!("[6] Closed mule");
-
     // Send true_amount_withdrawn to the owner, leaving just the ATA rent remaining
     invoke(
         &system_instruction::transfer(
@@ -220,8 +208,6 @@ fn transfer_lamports(
         ],
     )?;
 
-    msg!("[7] Transferred lamports");
-
     Ok(())
 }
 
@@ -234,8 +220,6 @@ fn transfer_spl(
         Some(owner_spl) => owner_spl,
         None => return Err(QuartzError::InvalidOwnerSplWSOL.into()), // owner_spl is only optional for wSOL
     };
-
-    msg!("[6] Got owner_spl");
 
     // Transfer all tokens from mule to owner_spl
     transfer_checked(
@@ -253,8 +237,6 @@ fn transfer_spl(
         ctx.accounts.spl_mint.decimals,
     )?;
 
-    msg!("[7] Transferred tokens");
-
     // Close mule
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
@@ -266,8 +248,6 @@ fn transfer_spl(
         vault_signer,
     );
     close_account(cpi_ctx_close)?;
-
-    msg!("[8] Closed mule");
 
     Ok(())
 }
