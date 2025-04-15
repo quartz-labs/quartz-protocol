@@ -1,6 +1,3 @@
-mod withdraw;
-pub use withdraw::*;
-
 mod initiate_withdraw;
 pub use initiate_withdraw::*;
 

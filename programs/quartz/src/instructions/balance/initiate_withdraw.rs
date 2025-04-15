@@ -1,9 +1,9 @@
-use anchor_lang::{prelude::*, Discriminator};
 use crate::{
-    config::TIME_LOCK_DURATION_SLOTS, 
-    state::{Vault, WithdrawOrder}, 
-    utils::{allocate_time_lock_owner_payer, allocate_time_lock_program_payer, TimeLock}
+    config::TIME_LOCK_DURATION_SLOTS,
+    state::{Vault, WithdrawOrder},
+    utils::{allocate_time_lock_owner_payer, allocate_time_lock_program_payer, TimeLock},
 };
+use anchor_lang::{prelude::*, Discriminator};
 
 #[derive(Accounts)]
 pub struct InitiateWithdraw<'info> {
@@ -24,29 +24,36 @@ pub struct InitiateWithdraw<'info> {
     pub time_lock_rent_payer: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
+
+    /// CHECK: Can be any account
+    pub destination: UncheckedAccount<'info>,
 }
 
 pub fn initiate_withdraw_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, InitiateWithdraw<'info>>,
     amount_base_units: u64,
     drift_market_index: u16,
-    reduce_only: bool
+    reduce_only: bool,
 ) -> Result<()> {
-    let is_owner_payer = ctx.accounts.time_lock_rent_payer.key().eq(&ctx.accounts.owner.key());
+    let is_owner_payer = ctx
+        .accounts
+        .time_lock_rent_payer
+        .key()
+        .eq(&ctx.accounts.owner.key());
 
     if is_owner_payer {
         allocate_time_lock_owner_payer(
             &ctx.accounts.owner,
             &ctx.accounts.withdraw_order,
             &ctx.accounts.system_program,
-            WithdrawOrder::INIT_SPACE
+            WithdrawOrder::INIT_SPACE,
         )?;
     } else {
         allocate_time_lock_program_payer(
             &ctx.accounts.time_lock_rent_payer.to_account_info(),
             &ctx.accounts.withdraw_order,
             &ctx.accounts.system_program,
-            WithdrawOrder::INIT_SPACE
+            WithdrawOrder::INIT_SPACE,
         )?;
     }
 
@@ -57,11 +64,12 @@ pub fn initiate_withdraw_handler<'info>(
         time_lock: TimeLock {
             owner: ctx.accounts.owner.key(),
             is_owner_payer,
-            release_slot
+            release_slot,
         },
         amount_base_units,
         drift_market_index,
-        reduce_only
+        reduce_only,
+        destination: ctx.accounts.destination.key(),
     };
 
     let mut data = ctx.accounts.withdraw_order.try_borrow_mut_data()?;

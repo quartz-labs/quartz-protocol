@@ -78,6 +78,6 @@ pub enum QuartzError {
     InvalidTimeLockOwner,
     #[msg("An initialize instruction was sent to an account that has already been initialized")]
     AccountAlreadyInitialized,
-    #[msg("owner_spl is required if spl_mint is not wSOL")]
-    InvalidOwnerSplWSOL,
+    #[msg("destination_spl is required if spl_mint is not wSOL")]
+    InvalidDestinationSplWSOL,
 }

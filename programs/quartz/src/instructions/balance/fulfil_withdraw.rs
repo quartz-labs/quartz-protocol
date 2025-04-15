@@ -60,14 +60,6 @@ pub struct FulfilWithdraw<'info> {
     )]
     pub owner: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        associated_token::mint = spl_mint,
-        associated_token::authority = owner,
-        associated_token::token_program = token_program
-    )]
-    pub owner_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
-
     pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
@@ -108,6 +100,21 @@ pub struct FulfilWithdraw<'info> {
     pub drift_program: Program<'info, Drift>,
 
     pub system_program: Program<'info, System>,
+
+    /// CHECK: Safe once key is in withdraw order
+    #[account(
+        mut,
+        constraint = destination.key().eq(&withdraw_order.destination)
+    )]
+    pub destination: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        associated_token::mint = spl_mint,
+        associated_token::authority = destination,
+        associated_token::token_program = token_program
+    )]
+    pub destination_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
 }
 
 pub fn fulfil_withdraw_handler<'info>(
@@ -198,12 +205,12 @@ fn transfer_lamports(
     invoke(
         &system_instruction::transfer(
             ctx.accounts.caller.key,
-            ctx.accounts.owner.key,
+            ctx.accounts.destination.key,
             true_amount_withdrawn,
         ),
         &[
-            ctx.accounts.owner.to_account_info(),
             ctx.accounts.caller.to_account_info(),
+            ctx.accounts.destination.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
         ],
     )?;
@@ -216,9 +223,9 @@ fn transfer_spl(
     vault_signer: &[&[&[u8]]],
     true_amount_withdrawn: u64,
 ) -> Result<()> {
-    let owner_spl = match ctx.accounts.owner_spl.as_ref() {
-        Some(owner_spl) => owner_spl,
-        None => return Err(QuartzError::InvalidOwnerSplWSOL.into()), // owner_spl is only optional for wSOL
+    let destination_spl = match ctx.accounts.destination_spl.as_ref() {
+        Some(destination_spl) => destination_spl,
+        None => return Err(QuartzError::InvalidDestinationSplWSOL.into()),
     };
 
     // Transfer all tokens from mule to owner_spl
@@ -227,7 +234,7 @@ fn transfer_spl(
             ctx.accounts.token_program.to_account_info(),
             TransferChecked {
                 from: ctx.accounts.mule.to_account_info(),
-                to: owner_spl.to_account_info(),
+                to: destination_spl.to_account_info(),
                 authority: ctx.accounts.vault.to_account_info(),
                 mint: ctx.accounts.spl_mint.to_account_info(),
             },

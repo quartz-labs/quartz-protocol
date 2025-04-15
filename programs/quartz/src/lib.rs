@@ -94,15 +94,6 @@ pub mod quartz {
         fulfil_deposit_handler(ctx, amount_base_units, drift_market_index, reduce_only)
     }
 
-    pub fn withdraw<'info>(
-        ctx: Context<'_, '_, '_, 'info, Withdraw<'info>>,
-        amount_base_units: u64,
-        drift_market_index: u16,
-        reduce_only: bool,
-    ) -> Result<()> {
-        withdraw_handler(ctx, amount_base_units, drift_market_index, reduce_only)
-    }
-
     pub fn initiate_withdraw<'info>(
         ctx: Context<'_, '_, '_, 'info, InitiateWithdraw<'info>>,
         amount_base_units: u64,
@@ -132,22 +123,6 @@ pub mod quartz {
         ctx: Context<'_, '_, 'info, 'info, CompleteSpend<'info>>,
     ) -> Result<()> {
         complete_spend_handler(ctx)
-    }
-
-    pub fn adjust_spend_limits<'info>(
-        ctx: Context<'_, '_, 'info, 'info, AdjustSpendLimits<'info>>,
-        spend_limit_per_transaction: u64,
-        spend_limit_per_timeframe: u64,
-        timeframe_in_seconds: u64,
-        next_timeframe_reset_timestamp: u64,
-    ) -> Result<()> {
-        adjust_spend_limits_handler(
-            ctx,
-            spend_limit_per_transaction,
-            spend_limit_per_timeframe,
-            timeframe_in_seconds,
-            next_timeframe_reset_timestamp,
-        )
     }
 
     pub fn initiate_spend_limits<'info>(
