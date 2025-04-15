@@ -30,4 +30,7 @@ pub const SPEND_FEE_BPS: u64 = 50;
 pub const DRIFT_DELETE_USER_DISCRIMINATOR: &[u8] = &[186, 85, 17, 249, 219, 231, 98, 251];
 
 pub const TIME_LOCK_RENT_PAYER_SEEDS: &[u8] = b"time_lock_rent_payer";
-pub const TIME_LOCK_DURATION_SLOTS: u64 = 450;
+pub const TIME_LOCK_DURATION_SLOTS: u64 = 450; // 2.5 slots * 60s * 3m
+
+// pub const SPEND_HOLD_DURATION_SLOTS: u64 = 216_000; // 2.5 slots * 60s * 60m * 24h
+pub const SPEND_HOLD_DURATION_SLOTS: u64 = 150; // temporary 1 minute delay for testing

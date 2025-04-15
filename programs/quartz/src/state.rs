@@ -88,3 +88,20 @@ impl TimeLocked for SpendLimitsOrder {
         &self.time_lock
     }
 }
+
+#[account]
+pub struct SpendHold {
+    pub time_lock: TimeLock,
+    pub amount_usdc_base_units: u64,
+    pub spend_fee: bool,
+}
+
+impl Space for SpendHold {
+    const INIT_SPACE: usize = ANCHOR_DISCRIMINATOR + TimeLock::INIT_SPACE + U64_SIZE + U1_SIZE;
+}
+
+impl TimeLocked for SpendHold {
+    fn time_lock(&self) -> &TimeLock {
+        &self.time_lock
+    }
+}

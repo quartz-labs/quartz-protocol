@@ -125,6 +125,20 @@ pub mod quartz {
         complete_spend_handler(ctx)
     }
 
+    pub fn initiate_spend<'info>(
+        ctx: Context<'_, '_, 'info, 'info, InitiateSpend<'info>>,
+        amount_usdc_base_units: u64,
+        spend_fee: bool,
+    ) -> Result<()> {
+        initiate_spend_handler(ctx, amount_usdc_base_units, spend_fee)
+    }
+
+    pub fn fulfil_spend<'info>(
+        ctx: Context<'_, '_, 'info, 'info, FulfilSpend<'info>>,
+    ) -> Result<()> {
+        fulfil_spend_handler(ctx)
+    }
+
     pub fn initiate_spend_limits<'info>(
         ctx: Context<'_, '_, 'info, 'info, InitiateSpendLimits<'info>>,
         spend_limit_per_transaction: u64,
@@ -148,6 +162,7 @@ pub mod quartz {
     }
 
     // Collateral Repay
+
     pub fn start_collateral_repay<'info>(
         ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
     ) -> Result<()> {
