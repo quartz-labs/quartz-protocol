@@ -16,7 +16,6 @@ use drift::{
         initialize_user_stats as initialize_user_stats_drift,
     },
     program::Drift,
-    state::state::State as DriftState,
 };
 use solana_program::program::invoke;
 use solana_program::system_instruction;

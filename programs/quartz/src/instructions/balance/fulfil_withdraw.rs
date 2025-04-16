@@ -53,38 +53,22 @@ pub struct FulfilWithdraw<'info> {
     )]
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK: Any account, once it has a vault and matches the order
-    #[account(
-        mut,
-        constraint = owner.key().eq(&withdraw_order.time_lock.owner)
-    )]
+    /// CHECK: Checked in handler
+    #[account(mut)]
     pub owner: UncheckedAccount<'info>,
 
     pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    #[account(
-        mut,
-        seeds = [b"user".as_ref(), vault.key().as_ref(), (0u16).to_le_bytes().as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_user: AccountLoader<'info, DriftUser>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub drift_user: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"user_stats".as_ref(), vault.key().as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_user_stats: AccountLoader<'info, DriftUserStats>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    pub drift_user_stats: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"drift_state".as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_state: Box<Account<'info, DriftState>>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub drift_state: UncheckedAccount<'info>,
 
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
@@ -102,10 +86,7 @@ pub struct FulfilWithdraw<'info> {
     pub system_program: Program<'info, System>,
 
     /// CHECK: Safe once key is in withdraw order
-    #[account(
-        mut,
-        constraint = destination.key().eq(&withdraw_order.destination)
-    )]
+    #[account(mut)]
     pub destination: UncheckedAccount<'info>,
 
     #[account(
@@ -120,6 +101,14 @@ pub struct FulfilWithdraw<'info> {
 pub fn fulfil_withdraw_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
 ) -> Result<()> {
+    check!(
+        ctx.accounts
+            .destination
+            .key()
+            .eq(&ctx.accounts.withdraw_order.destination),
+        QuartzError::InvalidWithdrawDestination
+    );
+
     let (amount_base_units, drift_market_index, reduce_only) = get_order_data(&ctx)?;
 
     // Validate market index and mint
@@ -149,7 +138,9 @@ pub fn fulfil_withdraw_handler<'info>(
         },
         vault_signer,
     );
+
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
+
     drift_withdraw(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
 
     // Get true amount withdrawn in case reduce_only prevented full withdraw
@@ -157,6 +148,7 @@ pub fn fulfil_withdraw_handler<'info>(
     let true_amount_withdrawn = ctx.accounts.mule.amount;
 
     if ctx.accounts.spl_mint.key().eq(&WSOL_MINT) {
+        // wSOL must be unwrapped and sent as raw SOL, as the destination likely won't have a wSOL ATA
         transfer_lamports(&ctx, vault_signer, true_amount_withdrawn)?;
     } else {
         transfer_spl(&ctx, vault_signer, true_amount_withdrawn)?;
@@ -223,6 +215,7 @@ fn transfer_spl(
     vault_signer: &[&[&[u8]]],
     true_amount_withdrawn: u64,
 ) -> Result<()> {
+    // Destination SPL is only required if spl_mint is not wSOL
     let destination_spl = match ctx.accounts.destination_spl.as_ref() {
         Some(destination_spl) => destination_spl,
         None => return Err(QuartzError::InvalidDestinationSplWSOL.into()),

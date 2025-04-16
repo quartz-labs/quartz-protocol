@@ -8,13 +8,7 @@ use anchor_spl::{
     },
 };
 use drift::{
-    cpi::accounts::Deposit as DriftDeposit,
-    cpi::deposit as drift_deposit,
-    program::Drift,
-    state::{
-        state::State as DriftState,
-        user::{User as DriftUser, UserStats as DriftUserStats},
-    },
+    cpi::accounts::Deposit as DriftDeposit, cpi::deposit as drift_deposit, program::Drift,
 };
 
 #[derive(Accounts)]
@@ -53,29 +47,17 @@ pub struct FulfilDeposit<'info> {
 
     pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    #[account(
-        mut,
-        seeds = [b"user".as_ref(), vault.key().as_ref(), (0u16).to_le_bytes().as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_user: AccountLoader<'info, DriftUser>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub drift_user: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"user_stats".as_ref(), vault.key().as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_user_stats: AccountLoader<'info, DriftUserStats>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub drift_user_stats: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"drift_state".as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_state: Box<Account<'info, DriftState>>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub drift_state: UncheckedAccount<'info>,
 
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
@@ -96,6 +78,9 @@ pub fn fulfil_deposit_handler<'info>(
     drift_market_index: u16,
     reduce_only: bool,
 ) -> Result<()> {
+    // This function currently allows anyone to deposit into any vault
+    // TODO: Allow for a deposit address (eg: vault_spl), and have this function move its balance into Drift
+
     // Validate market index and mint
     let drift_market = get_drift_market(drift_market_index)?;
     check!(

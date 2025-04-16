@@ -23,7 +23,7 @@ pub const PROVIDER_BASE_ADDRESS: &str = "0x55a2eeB9028ee51Ef91352Fa9f84A9450C5Af
 pub const QUARTZ_CALLER_BASE_ADDRESS: &str = "0x28A0105A0cf8C0485a4956ba14b5274e9ED229DE";
 pub const RENT_RECLAIMER: Pubkey = pubkey!("AhLjdeYqv4Ytw5sukK4z3x37ZGaSJ44pRqdcxqHP4ChS");
 pub const SPEND_CALLER: Pubkey = pubkey!("JDd7PJDZJ8kwwzJpvUZ5qp9kXYAr9YdAEEVUNE1pFqhP");
-pub const SPEND_FEE_DESTINATION: Pubkey = pubkey!("9n8AU9ErEN4SrNgpVEuWSZFrHzB55sEx3UDJYk7KcxSm");
+pub const SPEND_FEE_DESTINATION: Pubkey = pubkey!("HPvsnVZQSeFr3TtD2JBjvvzxiZhnuk5MHfKRiswD4mYu");
 
 pub const SPEND_FEE_BPS: u64 = 50;
 

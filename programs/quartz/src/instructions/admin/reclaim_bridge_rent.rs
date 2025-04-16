@@ -36,6 +36,8 @@ pub fn reclaim_bridge_rent_handler(
     ctx: Context<ReclaimBridgeRent>,
     attestation: Vec<u8>,
 ) -> Result<()> {
+    // Reclaims account rent one the bridge for spend is fully processed
+
     let bridge_rent_payer_bump = ctx.bumps.bridge_rent_payer;
     let bridge_rent_payer_seeds = &[b"bridge_rent_payer".as_ref(), &[bridge_rent_payer_bump]];
     let signer_seeds = &[&bridge_rent_payer_seeds[..]];

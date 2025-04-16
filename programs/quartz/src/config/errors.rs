@@ -54,4 +54,6 @@ pub enum QuartzError {
     InvalidTimeLockOwner,
     #[msg("destination_spl is required if spl_mint is not wSOL")]
     InvalidDestinationSplWSOL,
+    #[msg("Withdraw destination does not match order account")]
+    InvalidWithdrawDestination,
 }

@@ -1,5 +1,5 @@
 use crate::{
-    config::{ANCHOR_DISCRIMINATOR, TIME_LOCK_DURATION_SLOTS},
+    config::{QuartzError, ANCHOR_DISCRIMINATOR, TIME_LOCK_DURATION_SLOTS},
     state::{TimeLock, Vault, WithdrawOrder},
     utils::{allocate_time_lock_owner_payer, allocate_time_lock_program_payer},
 };
@@ -35,6 +35,9 @@ pub fn initiate_withdraw_handler<'info>(
     drift_market_index: u16,
     reduce_only: bool,
 ) -> Result<()> {
+    // Creates a time locked withdraw order, which can be fulfilled permissionlessly once the time lock has expired
+    // Time locks prevent edge cases of double spend with the Quartz card
+
     let is_owner_payer = ctx
         .accounts
         .time_lock_rent_payer
@@ -58,7 +61,9 @@ pub fn initiate_withdraw_handler<'info>(
     }
 
     let current_slot = Clock::get()?.slot;
-    let release_slot = current_slot + TIME_LOCK_DURATION_SLOTS;
+    let release_slot = current_slot
+        .checked_add(TIME_LOCK_DURATION_SLOTS)
+        .ok_or(QuartzError::MathOverflow)?;
 
     let withdraw_order_data = WithdrawOrder {
         time_lock: TimeLock {
