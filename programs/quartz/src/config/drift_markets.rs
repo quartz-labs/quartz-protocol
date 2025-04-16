@@ -3,7 +3,7 @@ use solana_program::{native_token::LAMPORTS_PER_SOL, pubkey};
 
 use super::{USDC_MINT, WSOL_MINT};
 
-pub const DRIFT_MARKETS: [DriftMarket; 9] = [
+pub const DRIFT_MARKETS: [DriftMarket; 10] = [
     DriftMarket {
         // WSOL
         market_index: 1,
@@ -67,4 +67,11 @@ pub const DRIFT_MARKETS: [DriftMarket; 9] = [
         pyth_feed: "0xe379d8d3a1a44952474f057bdfe6e902a97f093b2872c152dcf04f612e3e3be9",
         base_units_per_token: 1_000_000_000,
     },
+    DriftMarket {
+        // BSOL
+        market_index: 8,
+        mint: pubkey!("bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"),
+        pyth_feed: "0x89875379e70f8fbadc17aef315adf3a8d5d160b811435537e03c97e8aac97d9c",
+        base_units_per_token: 1_000_000_000,
+    }
 ];
