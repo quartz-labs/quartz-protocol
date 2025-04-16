@@ -1,7 +1,7 @@
 use crate::{
     config::TIME_LOCK_DURATION_SLOTS,
-    state::{Vault, WithdrawOrder},
-    utils::{allocate_time_lock_owner_payer, allocate_time_lock_program_payer, TimeLock},
+    state::{TimeLock, Vault, WithdrawOrder},
+    utils::{allocate_time_lock_owner_payer, allocate_time_lock_program_payer},
 };
 use anchor_lang::{prelude::*, Discriminator};
 

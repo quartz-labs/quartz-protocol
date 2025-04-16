@@ -1,14 +1,18 @@
+use crate::config::QuartzError;
 use anchor_lang::prelude::*;
 use drift::{
-    instructions::optional_accounts::{load_maps, AccountMaps}, 
-    math::margin::{calculate_margin_requirement_and_total_collateral_and_liability_info, MarginRequirementType}, 
+    instructions::optional_accounts::{load_maps, AccountMaps},
+    math::margin::{
+        calculate_margin_requirement_and_total_collateral_and_liability_info, MarginRequirementType,
+    },
     state::{
-        margin_calculation::{MarginCalculation, MarginContext}, 
-        spot_market_map::get_writable_spot_market_set_from_many, state::State, user::User
-    }  
+        margin_calculation::{MarginCalculation, MarginContext},
+        spot_market_map::get_writable_spot_market_set_from_many,
+        state::State,
+        user::User,
+    },
 };
 use std::collections::BTreeSet;
-use crate::config::QuartzError;
 
 pub(crate) type MarketSet = BTreeSet<u16>;
 
@@ -19,6 +23,7 @@ pub fn get_account_health<'info>(
     market_index_liability: u16,
     remaining_accounts: &'info [AccountInfo<'info>],
 ) -> Result<u8> {
+    // Quartz health is calculated from initial margin (unlike Drift, which uses maintenance margin)
     let initial_margin_calculation = calculate_initial_margin_requirement(
         drift_user,
         drift_state,
@@ -39,7 +44,7 @@ fn calculate_initial_margin_requirement<'info>(
 ) -> Result<MarginCalculation> {
     let clock = Clock::get()?;
     let remaining_accounts_iter = &mut remaining_accounts.iter().peekable();
-    
+
     let AccountMaps {
         perp_market_map,
         spot_market_map,
@@ -59,15 +64,13 @@ fn calculate_initial_margin_requirement<'info>(
         &perp_market_map,
         &spot_market_map,
         &mut oracle_map,
-        margin_context
+        margin_context,
     )?;
 
     Ok(margin_calculation)
 }
 
-fn calculate_quartz_account_health(
-    initial_margin_calculation: MarginCalculation,
-) -> Result<u8> {
+fn calculate_quartz_account_health(initial_margin_calculation: MarginCalculation) -> Result<u8> {
     let total_collateral = initial_margin_calculation.total_collateral;
     let margin_requirement = initial_margin_calculation.margin_requirement;
 
@@ -85,7 +88,8 @@ fn calculate_quartz_account_health(
         return Ok(100);
     }
 
-    let health = total_collateral_unsigned.checked_sub(margin_requirement)
+    let health = total_collateral_unsigned
+        .checked_sub(margin_requirement)
         .ok_or(QuartzError::MathOverflow)?
         .checked_mul(100)
         .ok_or(QuartzError::MathOverflow)?

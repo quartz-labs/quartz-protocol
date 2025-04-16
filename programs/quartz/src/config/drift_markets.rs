@@ -1,7 +1,14 @@
-use crate::state::DriftMarket;
+use anchor_lang::prelude::Pubkey;
 use solana_program::{native_token::LAMPORTS_PER_SOL, pubkey};
 
 use super::{USDC_MINT, WSOL_MINT};
+
+pub struct DriftMarket {
+    pub market_index: u16,
+    pub mint: Pubkey,
+    pub pyth_feed: &'static str,
+    pub base_units_per_token: u64,
+}
 
 pub const DRIFT_MARKETS: [DriftMarket; 9] = [
     DriftMarket {

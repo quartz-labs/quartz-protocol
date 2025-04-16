@@ -1,6 +1,7 @@
 use crate::{
     check,
-    config::{QuartzError, PUBKEY_SIZE, TIME_LOCK_RENT_PAYER_SEEDS, U1_SIZE, U64_SIZE},
+    config::{QuartzError, TIME_LOCK_RENT_PAYER_SEEDS},
+    state::{TimeLock, TimeLocked},
 };
 use anchor_lang::prelude::*;
 use solana_program::{
@@ -8,21 +9,6 @@ use solana_program::{
     rent::Rent,
     system_instruction,
 };
-
-#[derive(Clone, AnchorSerialize, AnchorDeserialize)]
-pub struct TimeLock {
-    pub owner: Pubkey,
-    pub is_owner_payer: bool,
-    pub release_slot: u64,
-}
-
-impl Space for TimeLock {
-    const INIT_SPACE: usize = PUBKEY_SIZE + U1_SIZE + U64_SIZE;
-}
-
-pub trait TimeLocked {
-    fn time_lock(&self) -> &TimeLock;
-}
 
 pub fn allocate_time_lock_program_payer<'info>(
     time_lock_rent_payer: &AccountInfo<'info>,
@@ -150,9 +136,10 @@ where
     };
 
     // Transfer all rent to payer
+    let time_lock_balance = time_lock.to_account_info().lamports();
     **destination.lamports.borrow_mut() = destination
         .lamports()
-        .checked_add(time_lock.to_account_info().lamports())
+        .checked_add(time_lock_balance)
         .ok_or(QuartzError::MathOverflow)?;
     **time_lock.to_account_info().lamports.borrow_mut() = 0;
 

@@ -1,11 +1,11 @@
 use crate::{
     check,
     config::{
-        QuartzError, AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT, AUTO_REPAY_MAX_SLIPPAGE_BPS,
-        PYTH_MAX_PRICE_AGE_SECONDS,
+        DriftMarket, QuartzError, AUTO_REPAY_MAX_HEALTH_RESULT_PERCENT,
+        AUTO_REPAY_MAX_SLIPPAGE_BPS, PYTH_MAX_PRICE_AGE_SECONDS,
     },
     load_mut,
-    state::{CollateralRepayLedger, DriftMarket, Vault},
+    state::{CollateralRepayLedger, Vault},
     utils::{
         get_account_health, get_drift_market, normalize_price_exponents,
         validate_start_collateral_repay_ix,
@@ -112,7 +112,6 @@ pub struct WithdrawCollateralRepay<'info> {
         close = caller
     )]
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
-
     // #[account(
     //     mut,
     //     seeds = [b"rent_float".as_ref()],
