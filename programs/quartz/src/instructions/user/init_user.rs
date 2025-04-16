@@ -1,16 +1,24 @@
-use crate::{check, config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE}, state::Vault};
-use anchor_lang::{prelude::*, system_program::{create_account, CreateAccount}, Discriminator};
-use solana_program::program::invoke;
-use drift::{
-    program::Drift,
-    cpi::{
-        initialize_user as initialize_user_drift, 
-        initialize_user_stats as initialize_user_stats_drift
-    }, 
-    cpi::accounts::InitializeUser as InitializeUserDrift, 
-    cpi::accounts::InitializeUserStats as InitializeUserStatsDrift,
-    state::state::State as DriftState
+use crate::{
+    check,
+    config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE},
+    state::Vault,
 };
+use anchor_lang::{
+    prelude::*,
+    system_program::{create_account, CreateAccount},
+    Discriminator,
+};
+use drift::{
+    cpi::accounts::InitializeUser as InitializeUserDrift,
+    cpi::accounts::InitializeUserStats as InitializeUserStatsDrift,
+    cpi::{
+        initialize_user as initialize_user_drift,
+        initialize_user_stats as initialize_user_stats_drift,
+    },
+    program::Drift,
+    state::state::State as DriftState,
+};
+use solana_program::program::invoke;
 use solana_program::system_instruction;
 
 #[derive(Accounts)]
@@ -37,18 +45,14 @@ pub struct InitUser<'info> {
     /// CHECK: Passed into Drift CPI (which performs the security checks)
     #[account(mut)]
     pub drift_user: UncheckedAccount<'info>,
-    
+
     /// CHECK: Passed into Drift CPI (which performs the security checks)
     #[account(mut)]
     pub drift_user_stats: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"drift_state".as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_state: Box<Account<'info, DriftState>>,
+    /// CHECK: Passed into Drift CPI (which performs the security checks)
+    #[account(mut)]
+    pub drift_state: UncheckedAccount<'info>,
 
     pub drift_program: Program<'info, Drift>,
 
@@ -62,27 +66,21 @@ pub fn init_user_handler(
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
     timeframe_in_seconds: u64,
-    next_timeframe_reset_timestamp: u64
+    next_timeframe_reset_timestamp: u64,
 ) -> Result<()> {
     let vault_bump = ctx.bumps.vault;
     let owner = ctx.accounts.owner.key();
-    let seeds_vault = &[
-        b"vault",
-        owner.as_ref(),
-        &[vault_bump]
-    ];
+    let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
 
     let init_rent_payer_bump = ctx.bumps.init_rent_payer;
-    let init_rent_payer_seeds = &[
-        b"init_rent_payer".as_ref(),
-        &[init_rent_payer_bump]
-    ];
-    let signer_seeds = &[
-        &init_rent_payer_seeds[..],
-        &seeds_vault[..]
-    ];
+    let init_rent_payer_seeds = &[b"init_rent_payer".as_ref(), &[init_rent_payer_bump]];
+    let signer_seeds = &[&init_rent_payer_seeds[..], &seeds_vault[..]];
 
     // Check vault is not already initialized
+    check!(
+        ctx.accounts.vault.lamports() == 0,
+        QuartzError::VaultAlreadyInitialized
+    );
     check!(
         ctx.accounts.vault.data_is_empty(),
         QuartzError::VaultAlreadyInitialized
@@ -91,9 +89,9 @@ pub fn init_user_handler(
     // Pay init_rent_payer the init fee
     invoke(
         &system_instruction::transfer(
-            ctx.accounts.owner.key, 
-            ctx.accounts.init_rent_payer.key, 
-            INIT_ACCOUNT_RENT_FEE
+            ctx.accounts.owner.key,
+            ctx.accounts.init_rent_payer.key,
+            INIT_ACCOUNT_RENT_FEE,
         ),
         &[
             ctx.accounts.owner.to_account_info(),
@@ -103,12 +101,12 @@ pub fn init_user_handler(
     )?;
 
     init_vault(
-        &ctx, 
-        signer_seeds, 
-        spend_limit_per_transaction, 
-        spend_limit_per_timeframe, 
+        &ctx,
+        signer_seeds,
+        spend_limit_per_transaction,
+        spend_limit_per_timeframe,
         timeframe_in_seconds,
-        next_timeframe_reset_timestamp
+        next_timeframe_reset_timestamp,
     )?;
 
     init_drift_accounts(&ctx, signer_seeds)?;
@@ -118,11 +116,11 @@ pub fn init_user_handler(
 
 fn init_vault(
     ctx: &Context<InitUser>,
-    both_signer_seeds: &[&[&[u8]]],
+    signer_seeds: &[&[&[u8]]],
     spend_limit_per_transaction: u64,
     spend_limit_per_timeframe: u64,
     timeframe_in_seconds: u64,
-    next_timeframe_reset_timestamp: u64
+    next_timeframe_reset_timestamp: u64,
 ) -> Result<()> {
     // Init vault space
     let rent = Rent::get()?;
@@ -134,11 +132,11 @@ fn init_vault(
                 from: ctx.accounts.init_rent_payer.to_account_info(),
                 to: ctx.accounts.vault.to_account_info(),
             },
-            both_signer_seeds
+            signer_seeds,
         ),
         vault_rent_required,
         Vault::INIT_SPACE as u64,
-        &crate::ID
+        &crate::ID,
     )?;
 
     // Init vault data
@@ -149,7 +147,7 @@ fn init_vault(
         spend_limit_per_timeframe,
         remaining_spend_limit_per_timeframe: spend_limit_per_timeframe,
         next_timeframe_reset_timestamp,
-        timeframe_in_seconds
+        timeframe_in_seconds,
     };
     let vault_data_vec = vault_data.try_to_vec()?;
 
@@ -160,10 +158,7 @@ fn init_vault(
     Ok(())
 }
 
-fn init_drift_accounts(
-    ctx: &Context<InitUser>,
-    both_signer_seeds: &[&[&[u8]]]
-) -> Result<()> {
+fn init_drift_accounts(ctx: &Context<InitUser>, both_signer_seeds: &[&[&[u8]]]) -> Result<()> {
     let create_user_stats_cpi_context = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         InitializeUserStatsDrift {
@@ -174,10 +169,10 @@ fn init_drift_accounts(
             rent: ctx.accounts.rent.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         },
-        both_signer_seeds
+        both_signer_seeds,
     );
     initialize_user_stats_drift(create_user_stats_cpi_context)?;
-    
+
     let create_user_cpi_context = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         InitializeUserDrift {
@@ -189,7 +184,7 @@ fn init_drift_accounts(
             rent: ctx.accounts.rent.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         },
-        both_signer_seeds
+        both_signer_seeds,
     );
     initialize_user_drift(create_user_cpi_context, 0, [0; 32])?;
 

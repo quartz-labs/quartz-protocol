@@ -1,5 +1,5 @@
 use crate::{
-    config::TIME_LOCK_DURATION_SLOTS,
+    config::{ANCHOR_DISCRIMINATOR, TIME_LOCK_DURATION_SLOTS},
     state::{SpendLimitsOrder, TimeLock, Vault},
     utils::{allocate_time_lock_owner_payer, allocate_time_lock_program_payer},
 };
@@ -69,10 +69,11 @@ pub fn initiate_spend_limits_handler<'info>(
         timeframe_in_seconds,
         next_timeframe_reset_timestamp,
     };
+    let spend_limits_order_data_vec = spend_limits_order_data.try_to_vec()?;
 
     let mut data = ctx.accounts.spend_limits_order.try_borrow_mut_data()?;
-    data[..8].copy_from_slice(&SpendLimitsOrder::DISCRIMINATOR);
-    spend_limits_order_data.serialize(&mut &mut data[8..])?;
+    data[..ANCHOR_DISCRIMINATOR].copy_from_slice(&SpendLimitsOrder::DISCRIMINATOR);
+    data[ANCHOR_DISCRIMINATOR..].copy_from_slice(&spend_limits_order_data_vec[..]);
 
     Ok(())
 }

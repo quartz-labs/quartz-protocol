@@ -1,8 +1,8 @@
 use crate::{
     check,
     config::{
-        QuartzError, DOMAIN_BASE, PROVIDER_BASE_ADDRESS, QUARTZ_CALLER_BASE_ADDRESS, SPEND_CALLER,
-        USDC_MINT,
+        QuartzError, ANCHOR_DISCRIMINATOR, DOMAIN_BASE, PROVIDER_BASE_ADDRESS,
+        QUARTZ_CALLER_BASE_ADDRESS, SPEND_CALLER, USDC_MINT,
     },
     state::Vault,
     utils::evm_address_to_solana,
@@ -195,7 +195,7 @@ pub fn validate_start_spend_ix(start_spend: &Instruction) -> Result<()> {
     );
 
     check!(
-        start_spend.data[..8].eq(&crate::instruction::StartSpend::DISCRIMINATOR),
+        start_spend.data[..ANCHOR_DISCRIMINATOR].eq(&crate::instruction::StartSpend::DISCRIMINATOR),
         QuartzError::IllegalSpendInstructions
     );
 

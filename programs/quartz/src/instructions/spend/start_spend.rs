@@ -1,6 +1,9 @@
 use crate::{
     check,
-    config::{QuartzError, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION, USDC_MARKET_INDEX},
+    config::{
+        QuartzError, ANCHOR_DISCRIMINATOR, SPEND_CALLER, SPEND_FEE_BPS, SPEND_FEE_DESTINATION,
+        USDC_MARKET_INDEX,
+    },
     state::Vault,
     utils::get_drift_market,
 };
@@ -188,7 +191,8 @@ pub fn validate_complete_spend_ix<'info>(
     );
 
     check!(
-        complete_spend.data[..8].eq(&crate::instruction::CompleteSpend::DISCRIMINATOR),
+        complete_spend.data[..ANCHOR_DISCRIMINATOR]
+            .eq(&crate::instruction::CompleteSpend::DISCRIMINATOR),
         QuartzError::IllegalSpendInstructions
     );
 

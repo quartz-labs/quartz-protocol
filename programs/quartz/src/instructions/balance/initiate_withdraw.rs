@@ -1,5 +1,5 @@
 use crate::{
-    config::TIME_LOCK_DURATION_SLOTS,
+    config::{ANCHOR_DISCRIMINATOR, TIME_LOCK_DURATION_SLOTS},
     state::{TimeLock, Vault, WithdrawOrder},
     utils::{allocate_time_lock_owner_payer, allocate_time_lock_program_payer},
 };
@@ -71,10 +71,11 @@ pub fn initiate_withdraw_handler<'info>(
         reduce_only,
         destination: ctx.accounts.destination.key(),
     };
+    let withdraw_order_data_vec = withdraw_order_data.try_to_vec()?;
 
     let mut data = ctx.accounts.withdraw_order.try_borrow_mut_data()?;
-    data[..8].copy_from_slice(&WithdrawOrder::DISCRIMINATOR);
-    withdraw_order_data.serialize(&mut &mut data[8..])?;
+    data[..ANCHOR_DISCRIMINATOR].copy_from_slice(&WithdrawOrder::DISCRIMINATOR);
+    data[ANCHOR_DISCRIMINATOR..].copy_from_slice(&withdraw_order_data_vec[..]);
 
     Ok(())
 }

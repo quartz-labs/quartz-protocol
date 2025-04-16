@@ -1,6 +1,6 @@
 use crate::{
     check,
-    config::QuartzError,
+    config::{QuartzError, ANCHOR_DISCRIMINATOR},
     state::{CollateralRepayLedger, Vault},
 };
 use anchor_lang::{
@@ -67,7 +67,6 @@ pub struct StartCollateralRepay<'info> {
         space = CollateralRepayLedger::INIT_SPACE
     )]
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
-
     // #[account(
     //     mut,
     //     seeds = [b"rent_float".as_ref()],
@@ -118,7 +117,7 @@ pub fn validate_instruction_order(
     );
 
     check!(
-        deposit_instruction.data[..8]
+        deposit_instruction.data[..ANCHOR_DISCRIMINATOR]
             .eq(&crate::instruction::DepositCollateralRepay::DISCRIMINATOR),
         QuartzError::IllegalCollateralRepayInstructions
     );
@@ -130,7 +129,7 @@ pub fn validate_instruction_order(
     );
 
     check!(
-        withdraw_instruction.data[..8]
+        withdraw_instruction.data[..ANCHOR_DISCRIMINATOR]
             .eq(&crate::instruction::WithdrawCollateralRepay::DISCRIMINATOR),
         QuartzError::IllegalCollateralRepayInstructions
     );

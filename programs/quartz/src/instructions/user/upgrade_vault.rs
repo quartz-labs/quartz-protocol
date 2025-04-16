@@ -1,3 +1,4 @@
+use crate::check;
 use crate::config::{QuartzError, ANCHOR_DISCRIMINATOR, PUBKEY_SIZE};
 use crate::state::Vault;
 use anchor_lang::prelude::*;
@@ -51,9 +52,8 @@ pub fn upgrade_vault_handler(
     };
 
     // Validate accounts
-    require_keys_eq!(
-        vault_owner,
-        ctx.accounts.owner.key(),
+    check!(
+        vault_owner.eq(&ctx.accounts.owner.key()),
         QuartzError::InvalidVaultOwner
     );
 
@@ -67,9 +67,7 @@ pub fn upgrade_vault_handler(
         next_timeframe_reset_timestamp,
         timeframe_in_seconds,
     };
-    let new_vault_vec = new_vault
-        .try_to_vec()
-        .expect("Failed to convert Vault struct to vec");
+    let new_vault_vec = new_vault.try_to_vec()?;
 
     let rent = Rent::get()?;
     let new_minimum_balance = rent.minimum_balance(Vault::INIT_SPACE);
