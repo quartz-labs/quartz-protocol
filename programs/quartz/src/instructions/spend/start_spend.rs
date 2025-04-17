@@ -192,17 +192,14 @@ pub fn validate_complete_spend_ix<'info>(
     );
 
     // Validate state
-    let complete_vault = complete_spend.accounts[0].pubkey;
-    check!(
-        complete_vault.eq(&ctx.accounts.vault.key()),
-        QuartzError::InvalidUserAccounts
-    );
 
     let complete_owner = complete_spend.accounts[1].pubkey;
     check!(
         complete_owner.eq(&ctx.accounts.owner.key()),
         QuartzError::InvalidUserAccounts
     );
+
+    // Vault will be the same if owner is the same
 
     Ok(())
 }

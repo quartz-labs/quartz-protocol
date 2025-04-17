@@ -57,6 +57,7 @@ pub struct DepositCollateralRepay<'info> {
 
     pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
 
+    // Checked here as required for health calculations
     #[account(
         mut,
         seeds = [b"user".as_ref(), vault.key().as_ref(), (0u16).to_le_bytes().as_ref()],
@@ -69,12 +70,8 @@ pub struct DepositCollateralRepay<'info> {
     #[account(mut)]
     pub drift_user_stats: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"drift_state".as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
+    /// CHECK: Seeds don't need to be checked on this account as the Drift CPI performs the checks
+    #[account(mut)]
     pub drift_state: Box<Account<'info, DriftState>>,
 
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
@@ -178,7 +175,7 @@ pub fn deposit_collateral_repay_handler<'info>(
         true,
     )?;
 
-    // Return any remaining balance (in case return_only prevented full deposit)
+    // Return any remaining balance (in case reduce_only prevented full deposit)
     ctx.accounts.vault_spl.reload()?;
     let remaining_balance = ctx.accounts.vault_spl.amount;
     if remaining_balance > 0 {

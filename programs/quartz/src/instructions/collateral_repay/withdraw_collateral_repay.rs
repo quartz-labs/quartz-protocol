@@ -76,12 +76,8 @@ pub struct WithdrawCollateralRepay<'info> {
     #[account(mut)]
     pub drift_user_stats: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"drift_state".as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
     pub drift_state: Box<Account<'info, DriftState>>,
 
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
@@ -112,12 +108,6 @@ pub struct WithdrawCollateralRepay<'info> {
         close = caller
     )]
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
-    // #[account(
-    //     mut,
-    //     seeds = [b"rent_float".as_ref()],
-    //     bump
-    // )]
-    // pub rent_float: Option<UncheckedAccount<'info>>,
 }
 
 pub fn withdraw_collateral_repay_handler<'info>(
@@ -263,7 +253,9 @@ fn validate_prices<'info>(
         &withdraw_feed_id,
     )?;
     check!(withdraw_price.price > 0, QuartzError::NegativeOraclePrice);
-    let withdraw_highest_price_raw = (withdraw_price.price as u64) + withdraw_price.conf;
+    let withdraw_highest_price_raw = (withdraw_price.price as u64)
+        .checked_add(withdraw_price.conf)
+        .ok_or(QuartzError::MathOverflow)?;
 
     // Normalize prices to the same exponents
     let (deposit_lowest_price_normalized, withdraw_highest_price_normalized) =
@@ -292,8 +284,9 @@ fn validate_prices<'info>(
 
     // Allow for slippage, using integar multiplication to prevent floating point errors
     let slippage_multiplier_deposit: u128 = 100 * 100; // 100% x 100bps
-    let slippage_multiplier_withdraw: u128 =
-        slippage_multiplier_deposit - (AUTO_REPAY_MAX_SLIPPAGE_BPS as u128);
+    let slippage_multiplier_withdraw: u128 = slippage_multiplier_deposit
+        .checked_sub(AUTO_REPAY_MAX_SLIPPAGE_BPS as u128)
+        .ok_or(QuartzError::MathOverflow)?;
 
     let deposit_slippage_check_value = deposit_value
         .checked_mul(slippage_multiplier_deposit)

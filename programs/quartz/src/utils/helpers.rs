@@ -19,7 +19,6 @@ pub fn get_drift_market(market_index: u16) -> Result<&'static DriftMarket> {
         .ok_or(QuartzError::InvalidMarketIndex)?)
 }
 
-// TODO: Ensure maths are correct here
 pub fn normalize_price_exponents(
     price_a: u64,
     exponent_a: i32,
@@ -44,11 +43,13 @@ pub fn normalize_price_exponents(
     }
 
     if exponent_difference > 0 {
+        // a > b
         let amount_b_normalized = (price_b as u128)
             .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
             .ok_or(QuartzError::MathOverflow)?;
         Ok((price_a as u128, amount_b_normalized))
     } else {
+        // b > a
         let amount_a_normalized = (price_a as u128)
             .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
             .ok_or(QuartzError::MathOverflow)?;

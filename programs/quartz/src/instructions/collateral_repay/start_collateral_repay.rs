@@ -67,12 +67,6 @@ pub struct StartCollateralRepay<'info> {
         space = CollateralRepayLedger::INIT_SPACE
     )]
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
-    // #[account(
-    //     mut,
-    //     seeds = [b"rent_float".as_ref()],
-    //     bump
-    // )]
-    // pub rent_float: Option<UncheckedAccount<'info>>,
 }
 
 pub fn start_collateral_repay_handler<'info>(
@@ -93,7 +87,7 @@ pub fn start_collateral_repay_handler<'info>(
 
     validate_spl_context(&ctx, &deposit_instruction, &withdraw_instruction)?;
 
-    // Log deposit and withdraw starting balances
+    // Log deposit and withdraw starting balances (ensures deposit & withdraw use exact amounts in swap)
     let ledger = &mut ctx.accounts.ledger;
     ledger.deposit = ctx.accounts.caller_deposit_spl.amount;
     ledger.withdraw = ctx.accounts.caller_withdraw_spl.amount;
@@ -156,26 +150,7 @@ fn validate_user_accounts_context(
         QuartzError::InvalidUserAccounts
     );
 
-    let deposit_vault = deposit_instruction.accounts[3].pubkey;
-    let withdraw_vault = withdraw_instruction.accounts[3].pubkey;
-    check!(
-        deposit_vault.eq(&withdraw_vault),
-        QuartzError::InvalidUserAccounts
-    );
-
-    let deposit_drift_user = deposit_instruction.accounts[6].pubkey;
-    let withdraw_drift_user = withdraw_instruction.accounts[6].pubkey;
-    check!(
-        deposit_drift_user.eq(&withdraw_drift_user),
-        QuartzError::InvalidUserAccounts
-    );
-
-    let deposit_drift_user_stats = deposit_instruction.accounts[7].pubkey;
-    let withdraw_drift_user_stats = withdraw_instruction.accounts[7].pubkey;
-    check!(
-        deposit_drift_user_stats.eq(&withdraw_drift_user_stats),
-        QuartzError::InvalidUserAccounts
-    );
+    // Vault and drift accounts will all be the same if owner is the same
 
     Ok(())
 }
@@ -195,10 +170,13 @@ fn validate_drift_markets(
             .try_into()
             .expect("Failed to serialize withdraw market index from introspection ix data"),
     );
+
     check!(
         !deposit_market_index.eq(&withdraw_market_index),
         QuartzError::IdenticalCollateralRepayMarkets
     );
+
+    // Deposit & withdraw instructions themselves check that the mints match the index
 
     Ok(())
 }

@@ -1,5 +1,5 @@
 use crate::{
-    config::{ANCHOR_DISCRIMINATOR, TIME_LOCK_DURATION_SLOTS},
+    config::{QuartzError, ANCHOR_DISCRIMINATOR, TIME_LOCK_DURATION_SLOTS},
     state::{SpendLimitsOrder, TimeLock, Vault},
     utils::{allocate_time_lock_owner_payer, allocate_time_lock_program_payer},
 };
@@ -56,7 +56,9 @@ pub fn initiate_spend_limits_handler<'info>(
     }
 
     let current_slot = Clock::get()?.slot;
-    let release_slot = current_slot + TIME_LOCK_DURATION_SLOTS;
+    let release_slot = current_slot
+        .checked_add(TIME_LOCK_DURATION_SLOTS)
+        .ok_or(QuartzError::MathOverflow)?;
 
     let spend_limits_order_data = SpendLimitsOrder {
         time_lock: TimeLock {
