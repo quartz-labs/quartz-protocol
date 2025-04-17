@@ -87,12 +87,42 @@ pub fn evm_address_to_solana(ethereum_address: &str) -> Result<Pubkey> {
     Ok(Pubkey::new_from_array(bytes))
 }
 
+fn validate_time_lock_fresh(time_lock: &AccountInfo) -> Result<()> {
+    check!(
+        time_lock.lamports() == 0,
+        QuartzError::TimeLockAlreadyInitialized
+    );
+    check!(
+        time_lock.data_is_empty(),
+        QuartzError::TimeLockAlreadyInitialized
+    );
+
+    Ok(())
+}
+
+fn validate_time_lock_rent_payer<'info>(
+    time_lock_rent_payer: &AccountInfo<'info>,
+) -> Result<(&'info [u8], u8)> {
+    let time_lock_rent_payer_seeds = TIME_LOCK_RENT_PAYER_SEEDS;
+    let (expected_pda, bump) =
+        Pubkey::find_program_address(&[time_lock_rent_payer_seeds], &crate::ID);
+
+    check!(
+        time_lock_rent_payer.key().eq(&expected_pda),
+        QuartzError::InvalidTimeLockRentPayer
+    );
+
+    Ok((time_lock_rent_payer_seeds, bump))
+}
+
 pub fn allocate_time_lock_program_payer<'info>(
     time_lock_rent_payer: &AccountInfo<'info>,
     time_lock: &Signer<'info>,
     system_program: &Program<'info, System>,
     space: usize,
 ) -> Result<()> {
+    validate_time_lock_fresh(time_lock)?;
+
     let (time_lock_rent_payer_seeds, bump) = validate_time_lock_rent_payer(time_lock_rent_payer)?;
 
     let seeds_with_bump = &[time_lock_rent_payer_seeds, &[bump]];
@@ -121,27 +151,14 @@ pub fn allocate_time_lock_program_payer<'info>(
     Ok(())
 }
 
-fn validate_time_lock_rent_payer<'info>(
-    time_lock_rent_payer: &AccountInfo<'info>,
-) -> Result<(&'info [u8], u8)> {
-    let time_lock_rent_payer_seeds = TIME_LOCK_RENT_PAYER_SEEDS;
-    let (expected_pda, bump) =
-        Pubkey::find_program_address(&[time_lock_rent_payer_seeds], &crate::ID);
-
-    check!(
-        time_lock_rent_payer.key().eq(&expected_pda),
-        QuartzError::InvalidTimeLockRentPayer
-    );
-
-    Ok((time_lock_rent_payer_seeds, bump))
-}
-
 pub fn allocate_time_lock_owner_payer<'info>(
     owner: &Signer<'info>,
     time_lock: &Signer<'info>,
     system_program: &Program<'info, System>,
     space: usize,
 ) -> Result<()> {
+    validate_time_lock_fresh(time_lock)?;
+
     let rent = Rent::get()?;
     let required_lamports = rent.minimum_balance(space);
 

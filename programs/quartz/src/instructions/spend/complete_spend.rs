@@ -2,10 +2,10 @@ use crate::{
     check,
     config::{
         QuartzError, ANCHOR_DISCRIMINATOR, DOMAIN_BASE, PROVIDER_BASE_ADDRESS,
-        QUARTZ_CALLER_BASE_ADDRESS, SPEND_CALLER, USDC_MINT,
+        QUARTZ_CALLER_BASE_ADDRESS, SPEND_CALLER, USDC_MARKET_INDEX,
     },
     state::Vault,
-    utils::evm_address_to_solana,
+    utils::{evm_address_to_solana, get_drift_market},
 };
 use anchor_lang::{
     prelude::*,
@@ -41,7 +41,7 @@ pub struct CompleteSpend<'info> {
 
     #[account(
         mut,
-        constraint = spend_caller.key().eq(&SPEND_CALLER)
+        constraint = spend_caller.key().eq(&SPEND_CALLER) @ QuartzError::InvalidSpendCaller
     )]
     pub spend_caller: Signer<'info>,
 
@@ -54,10 +54,7 @@ pub struct CompleteSpend<'info> {
     )]
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(
-        mut,
-        constraint = usdc_mint.key().eq(&USDC_MINT)
-    )]
+    #[account(mut)]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// CHECK: Safe once address is correct
@@ -117,6 +114,13 @@ pub fn complete_spend_handler<'info>(
     let start_instruction =
         load_instruction_at_checked(index - 1, &ctx.accounts.instructions.to_account_info())?;
     validate_start_spend_ix(&start_instruction)?;
+
+    // Validate USDC mint
+    let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
+    check!(
+        &ctx.accounts.usdc_mint.key().eq(&drift_market.mint),
+        QuartzError::InvalidMint
+    );
 
     // Bridge USDC to Base through Circle CPI taking amount from spend mule
     let bridge_rent_payer_bump = ctx.bumps.bridge_rent_payer;

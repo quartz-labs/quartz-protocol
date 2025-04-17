@@ -19,13 +19,7 @@ use anchor_spl::{
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 use drift::{
-    cpi::accounts::Withdraw as DriftWithdraw,
-    cpi::withdraw as drift_withdraw,
-    program::Drift,
-    state::{
-        state::State as DriftState,
-        user::{User as DriftUser, UserStats as DriftUserStats},
-    },
+    cpi::accounts::Withdraw as DriftWithdraw, cpi::withdraw as drift_withdraw, program::Drift,
 };
 use solana_program::instruction::Instruction;
 
@@ -45,15 +39,14 @@ pub struct StartSpend<'info> {
 
     #[account(
         mut,
-        constraint = spend_caller.key().eq(&SPEND_CALLER)
+        constraint = spend_caller.key().eq(&SPEND_CALLER) @ QuartzError::InvalidSpendCaller
     )]
     pub spend_caller: Signer<'info>,
 
-    /// CHECK: Address is checked, and owner ensures it's a token account
+    /// CHECK: Safe once address is correct
     #[account(
         mut,
-        constraint = spend_fee_destination.key().eq(&SPEND_FEE_DESTINATION),
-        constraint = spend_fee_destination.owner.eq(&token_program.key())
+        constraint = spend_fee_destination.key().eq(&SPEND_FEE_DESTINATION) @ QuartzError::InvalidSpendFeeDestination
     )]
     pub spend_fee_destination: UncheckedAccount<'info>,
 
@@ -70,29 +63,17 @@ pub struct StartSpend<'info> {
     #[account(mut)]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    #[account(
-        mut,
-        seeds = [b"user".as_ref(), vault.key().as_ref(), (0u16).to_le_bytes().as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_user: AccountLoader<'info, DriftUser>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub drift_user: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"user_stats".as_ref(), vault.key().as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_user_stats: AccountLoader<'info, DriftUserStats>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub drift_user_stats: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        seeds = [b"drift_state".as_ref()],
-        seeds::program = drift_program.key(),
-        bump
-    )]
-    pub drift_state: Box<Account<'info, DriftState>>,
+    /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
+    #[account(mut)]
+    pub drift_state: UncheckedAccount<'info>,
 
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
@@ -132,6 +113,15 @@ pub fn start_spend_handler<'info>(
         QuartzError::InvalidMint
     );
 
+    // Fee destination must be the token account itself, not the authority
+    check!(
+        &ctx.accounts
+            .spend_fee_destination
+            .owner
+            .eq(&ctx.accounts.token_program.key()),
+        QuartzError::InvalidSpendFeeDestination
+    );
+
     process_spend_limits(&mut ctx, amount_usdc_base_units)?;
 
     let vault_bump = ctx.accounts.vault.bump;
@@ -157,11 +147,16 @@ pub fn start_spend_handler<'info>(
 
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
+    // reduce_only = false to allow for collateral position becoming a loan
     drift_withdraw(cpi_ctx, USDC_MARKET_INDEX, amount_usdc_base_units, false)?;
 
     // If taking a fee, transfer cut of amount from mule to spend caller
     if spend_fee {
-        let fee_amount = (amount_usdc_base_units * SPEND_FEE_BPS) / 10_000;
+        let fee_amount = amount_usdc_base_units
+            .checked_mul(SPEND_FEE_BPS)
+            .ok_or(QuartzError::MathOverflow)?
+            .checked_div(10_000)
+            .ok_or(QuartzError::MathOverflow)?;
 
         transfer_checked(
             CpiContext::new(
@@ -216,9 +211,9 @@ fn process_spend_limits<'info>(
     ctx: &mut Context<'_, '_, '_, 'info, StartSpend<'info>>,
     amount_usdc_base_units: u64,
 ) -> Result<()> {
-    let current_timestamp_raw = Clock::get()?.unix_timestamp;
-    check!(current_timestamp_raw > 0, QuartzError::InvalidTimestamp);
-    let current_timestamp = current_timestamp_raw as u64;
+    let current_timestamp_signed = Clock::get()?.unix_timestamp;
+    check!(current_timestamp_signed > 0, QuartzError::InvalidTimestamp);
+    let current_timestamp = current_timestamp_signed as u64;
 
     if ctx.accounts.vault.spend_limit_per_transaction < amount_usdc_base_units {
         let error_code = QuartzError::InsufficientTransactionSpendLimit;
@@ -248,7 +243,7 @@ fn process_spend_limits<'info>(
     if current_timestamp >= ctx.accounts.vault.next_timeframe_reset_timestamp {
         let overflow = current_timestamp - ctx.accounts.vault.next_timeframe_reset_timestamp;
         let overflow_in_timeframes = overflow / ctx.accounts.vault.timeframe_in_seconds;
-        let seconds_to_add = (overflow_in_timeframes + 1)
+        let seconds_to_add = (overflow_in_timeframes + 1) // Bring the next reset into the future
             .checked_mul(ctx.accounts.vault.timeframe_in_seconds)
             .ok_or(QuartzError::MathOverflow)?;
 

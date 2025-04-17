@@ -56,4 +56,10 @@ pub enum QuartzError {
     InvalidDestinationSplWSOL,
     #[msg("Withdraw destination does not match order account")]
     InvalidWithdrawDestination,
+    #[msg("Invalid spend fee destination")]
+    InvalidSpendFeeDestination,
+    #[msg("Invalid spend caller")]
+    InvalidSpendCaller,
+    #[msg("Time lock account is already initialized")]
+    TimeLockAlreadyInitialized,
 }

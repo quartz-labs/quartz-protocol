@@ -13,13 +13,7 @@ use anchor_spl::{
     },
 };
 use drift::{
-    cpi::accounts::Withdraw as DriftWithdraw,
-    cpi::withdraw as drift_withdraw,
-    program::Drift,
-    state::{
-        state::State as DriftState,
-        user::{User as DriftUser, UserStats as DriftUserStats},
-    },
+    cpi::accounts::Withdraw as DriftWithdraw, cpi::withdraw as drift_withdraw, program::Drift,
 };
 use solana_program::{program::invoke, system_instruction};
 

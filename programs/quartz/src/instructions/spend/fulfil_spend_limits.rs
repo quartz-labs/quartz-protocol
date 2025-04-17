@@ -25,11 +25,8 @@ pub struct FulfilSpendLimits<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
-    /// CHECK: Any account, once it has a vault and matches the order
-    #[account(
-        mut,
-        constraint = owner.key().eq(&spend_limits_order.time_lock.owner)
-    )]
+    /// CHECK: Any account, once it has a vault (order checked in handler)
+    #[account(mut)]
     pub owner: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -51,6 +48,8 @@ pub fn fulfil_spend_limits_handler<'info>(
         .spend_limit_per_timeframe
         .saturating_sub(ctx.accounts.vault.remaining_spend_limit_per_timeframe);
 
+    // Set remaining limit to be the new spend limit minus what they've already used from the old limit
+    // (otherwise changing anything in your spend limit would reset the remaining limit completely)
     ctx.accounts.vault.remaining_spend_limit_per_timeframe =
         spend_limit_per_timeframe.saturating_sub(spend_limit_per_timeframe_already_used);
 
