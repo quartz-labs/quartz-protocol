@@ -227,6 +227,7 @@ pub fn withdraw_collateral_repay_handler<'info>(
     Ok(())
 }
 
+/// Takes the deposit and withdraw amounts, their prices, and validates that the withdraw amount is within slippage of the deposit amount
 #[inline(never)]
 fn validate_prices<'info>(
     ctx: &Context<'_, '_, '_, 'info, WithdrawCollateralRepay<'info>>,
@@ -243,7 +244,7 @@ fn validate_prices<'info>(
         &deposit_feed_id,
     )?;
     check!(deposit_price.price > 0, QuartzError::NegativeOraclePrice);
-    let deposit_lowest_price_raw = u64::try_from(deposit_price.price)
+    let deposit_lowest_price = u64::try_from(deposit_price.price)
         .map_err(|_| QuartzError::MathOverflow)?
         .checked_sub(deposit_price.conf)
         .ok_or(QuartzError::NegativeOraclePrice)?;
@@ -256,7 +257,7 @@ fn validate_prices<'info>(
         &withdraw_feed_id,
     )?;
     check!(withdraw_price.price > 0, QuartzError::NegativeOraclePrice);
-    let withdraw_highest_price_raw = u64::try_from(withdraw_price.price)
+    let withdraw_highest_price = u64::try_from(withdraw_price.price)
         .map_err(|_| QuartzError::MathOverflow)?
         .checked_add(withdraw_price.conf)
         .ok_or(QuartzError::MathOverflow)?;
@@ -264,9 +265,9 @@ fn validate_prices<'info>(
     // Normalize prices to the same exponents
     let (deposit_lowest_price_normalized, withdraw_highest_price_normalized) =
         normalize_price_exponents(
-            deposit_lowest_price_raw as u128,
+            deposit_lowest_price as u128,
             deposit_price.exponent,
-            withdraw_highest_price_raw as u128,
+            withdraw_highest_price as u128,
             withdraw_price.exponent,
         )?;
 
@@ -285,6 +286,13 @@ fn validate_prices<'info>(
     let withdraw_value: u128 = withdraw_amount_normalized
         .checked_mul(withdraw_highest_price_normalized)
         .ok_or(QuartzError::MathOverflow)?;
+
+    // Sanity check on slippage
+    const HARD_MAX_SLIPPAGE_BPS: u16 = 500;
+    check!(
+        AUTO_REPAY_MAX_SLIPPAGE_BPS <= HARD_MAX_SLIPPAGE_BPS,
+        QuartzError::InvalidSlippageBPS
+    );
 
     // Allow for slippage, using integar multiplication to prevent floating point errors
     let slippage_multiplier_deposit: u128 = 100 * 100; // 100% x 100bps

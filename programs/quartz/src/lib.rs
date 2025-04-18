@@ -87,10 +87,9 @@ pub mod quartz {
 
     pub fn fulfil_deposit<'info>(
         ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
-        amount_base_units: u64,
         drift_market_index: u16,
     ) -> Result<()> {
-        fulfil_deposit_handler(ctx, amount_base_units, drift_market_index)
+        fulfil_deposit_handler(ctx, drift_market_index)
     }
 
     pub fn initiate_withdraw<'info>(

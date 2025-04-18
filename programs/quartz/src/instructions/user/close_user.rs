@@ -51,7 +51,7 @@ pub struct CloseUser<'info> {
 
     pub system_program: Program<'info, System>,
 
-    /// CHECK: Safe once seeds are correct
+    /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(
         seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
         bump

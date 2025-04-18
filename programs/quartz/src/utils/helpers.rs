@@ -36,13 +36,13 @@ pub fn validate_account_fresh(account: &AccountInfo) -> Result<()> {
     Ok(())
 }
 
+/// Normalizes two oracles prices (which are given in the form of price * 10^exponent) to be the same exponent
 pub fn normalize_price_exponents(
     price_a: u128,
     exponent_a: i32,
     price_b: u128,
     exponent_b: i32,
 ) -> Result<(u128, u128)> {
-    // Used to compare two oracle prices
     let exponent_difference = exponent_a
         .checked_sub(exponent_b)
         .ok_or(QuartzError::MathOverflow)?;
@@ -50,8 +50,10 @@ pub fn normalize_price_exponents(
         exponent_difference != i32::MIN,
         QuartzError::InvalidPriceExponent
     );
+
+    // Sanity check on exponent difference
     check!(
-        exponent_difference.unsigned_abs() <= 32, // Sanity check on Pyth exponent difference
+        exponent_difference.unsigned_abs() <= 12,
         QuartzError::InvalidPriceExponent
     );
 
@@ -60,17 +62,17 @@ pub fn normalize_price_exponents(
     }
 
     if exponent_difference > 0 {
-        // a > b
-        let amount_b_normalized = (price_b)
-            .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
-            .ok_or(QuartzError::MathOverflow)?;
-        Ok((price_a, amount_b_normalized))
-    } else {
-        // b > a
+        // exp(a) > exp(b), increase base value of a to match b's exponent
         let amount_a_normalized = (price_a)
             .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
             .ok_or(QuartzError::MathOverflow)?;
         Ok((amount_a_normalized, price_b))
+    } else {
+        // exp(b) > exp(a), increase base value of b to match a's exponent
+        let amount_b_normalized = (price_b)
+            .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
+            .ok_or(QuartzError::MathOverflow)?;
+        Ok((price_a, amount_b_normalized))
     }
 }
 

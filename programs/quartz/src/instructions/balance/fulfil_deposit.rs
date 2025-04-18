@@ -19,7 +19,7 @@ pub struct FulfilDeposit<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
-    /// CHECK: Safe once seeds are correct
+    /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(
         seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
         bump
@@ -79,7 +79,6 @@ pub struct FulfilDeposit<'info> {
 
 pub fn fulfil_deposit_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
-    amount_base_units: u64,
     drift_market_index: u16,
 ) -> Result<()> {
     // Validate market index and mint
@@ -100,6 +99,7 @@ pub fn fulfil_deposit_handler<'info>(
     let deposit_address_signer = &[&seeds_deposit_address[..]];
 
     // Transfer tokens from deposit address ATA to vault's mule
+    let amount_base_units = ctx.accounts.deposit_address_spl.amount;
     transfer_checked(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
@@ -132,6 +132,7 @@ pub fn fulfil_deposit_handler<'info>(
 
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
+    // reduce_only = false to allow for a loan position to become a collateral position
     drift_deposit(cpi_ctx, drift_market_index, amount_base_units, false)?;
 
     // Close vault's mule

@@ -10,6 +10,8 @@ pub enum QuartzError {
     InvalidMint,
     #[msg("Price slippage is above maximum")]
     MaxSlippageExceeded,
+    #[msg("Max slippage config is above maximum BPS")]
+    InvalidSlippageBPS,
     #[msg("User accounts accross instructions must match")]
     InvalidUserAccounts,
     #[msg("Swap source token account does not match withdraw")]
