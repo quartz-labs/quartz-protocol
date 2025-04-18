@@ -47,8 +47,7 @@ pub struct WithdrawCollateralRepay<'info> {
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
-        bump = vault.bump,
-        has_one = owner
+        bump = vault.bump
     )]
     pub vault: Box<Account<'info, Vault>>,
 
@@ -139,7 +138,9 @@ pub fn withdraw_collateral_repay_handler<'info>(
     // Calculate withdraw tokens sent to jupiter swap
     let starting_withdraw_spl_balance = ctx.accounts.ledger.withdraw;
     let current_withdraw_spl_balance = ctx.accounts.caller_spl.amount;
-    let amount_withdraw_base_units = starting_withdraw_spl_balance - current_withdraw_spl_balance;
+    let amount_withdraw_base_units = starting_withdraw_spl_balance
+        .checked_sub(current_withdraw_spl_balance)
+        .ok_or(QuartzError::MathOverflow)?;
 
     // Drift Withdraw CPI
     let mut cpi_ctx = CpiContext::new_with_signer(

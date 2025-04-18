@@ -62,4 +62,12 @@ pub enum QuartzError {
     InvalidSpendCaller,
     #[msg("Time lock account is already initialized")]
     TimeLockAlreadyInitialized,
+    #[msg("Invalid rent reclaimer")]
+    InvalidRentReclaimer,
+    #[msg("Failed to deserialize market index")]
+    FailedToDeserializeMarketIndex,
+    #[msg("Failed to deserialize vault bytes")]
+    FailedToDeserializeVaultBytes,
+    #[msg("Invalid vault account")]
+    InvalidVaultAccount,
 }

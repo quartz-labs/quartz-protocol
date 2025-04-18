@@ -16,8 +16,7 @@ pub struct Deposit<'info> {
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
-        bump = vault.bump,
-        has_one = owner
+        bump = vault.bump
     )]
     pub vault: Box<Account<'info, Vault>>,
 

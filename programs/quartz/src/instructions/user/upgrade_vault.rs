@@ -1,7 +1,7 @@
 use crate::check;
 use crate::config::{QuartzError, ANCHOR_DISCRIMINATOR, PUBKEY_SIZE};
 use crate::state::Vault;
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 use solana_program::{program::invoke_signed, system_instruction};
 
 #[derive(Accounts)]
@@ -38,14 +38,19 @@ pub fn upgrade_vault_handler(
     // Get current Vault data
     let existing_vault = &ctx.accounts.vault;
     let (vault_owner, vault_bump) = {
-        let bump_start_bytes = ANCHOR_DISCRIMINATOR + PUBKEY_SIZE;
-
         let data = existing_vault.data.borrow();
+        let discriminator = &data[..ANCHOR_DISCRIMINATOR];
+        check!(
+            discriminator.eq(&Vault::DISCRIMINATOR),
+            QuartzError::InvalidVaultAccount
+        );
+
+        let bump_start_bytes = ANCHOR_DISCRIMINATOR + PUBKEY_SIZE;
         let owner_bytes = &data[ANCHOR_DISCRIMINATOR..bump_start_bytes];
         let owner = Pubkey::new_from_array(
             owner_bytes
                 .try_into()
-                .expect("Failed to deserialize owner bytes data from Vault"),
+                .map_err(|_| QuartzError::FailedToDeserializeVaultBytes)?,
         );
 
         (owner, data[bump_start_bytes])
@@ -71,28 +76,28 @@ pub fn upgrade_vault_handler(
 
     let rent = Rent::get()?;
     let new_minimum_balance = rent.minimum_balance(Vault::INIT_SPACE);
-    let lamports_diff = new_minimum_balance
-        .checked_sub(existing_vault.lamports())
-        .ok_or(QuartzError::MathOverflow)?;
+    let lamports_diff = new_minimum_balance.saturating_sub(existing_vault.lamports());
 
     // Extend the vault size
-    let init_rent_payer_bump = ctx.bumps.init_rent_payer;
-    let seeds = &[b"init_rent_payer".as_ref(), &[init_rent_payer_bump]];
-    let signer_seeds = &[&seeds[..]];
+    if lamports_diff > 0 {
+        let init_rent_payer_bump = ctx.bumps.init_rent_payer;
+        let seeds = &[b"init_rent_payer".as_ref(), &[init_rent_payer_bump]];
+        let signer_seeds = &[&seeds[..]];
 
-    invoke_signed(
-        &system_instruction::transfer(
-            ctx.accounts.init_rent_payer.key,
-            existing_vault.key,
-            lamports_diff,
-        ),
-        &[
-            ctx.accounts.init_rent_payer.to_account_info(),
-            existing_vault.to_account_info(),
-            ctx.accounts.system_program.to_account_info(),
-        ],
-        signer_seeds,
-    )?;
+        invoke_signed(
+            &system_instruction::transfer(
+                ctx.accounts.init_rent_payer.key,
+                existing_vault.key,
+                lamports_diff,
+            ),
+            &[
+                ctx.accounts.init_rent_payer.to_account_info(),
+                existing_vault.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+            signer_seeds,
+        )?;
+    }
 
     // Reallocate data
     existing_vault.realloc(Vault::INIT_SPACE, false)?;

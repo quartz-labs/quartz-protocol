@@ -29,8 +29,7 @@ pub struct StartSpend<'info> {
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
-        bump = vault.bump,
-        has_one = owner
+        bump = vault.bump
     )]
     pub vault: Box<Account<'info, Vault>>,
 
@@ -212,6 +211,7 @@ fn process_spend_limits<'info>(
     check!(current_timestamp_signed > 0, QuartzError::InvalidTimestamp);
     let current_timestamp = current_timestamp_signed as u64;
 
+    // Check transaction spend limit and timeframe
     if ctx.accounts.vault.spend_limit_per_transaction < amount_usdc_base_units {
         let error_code = QuartzError::InsufficientTransactionSpendLimit;
         anchor_lang::prelude::msg!(
@@ -256,6 +256,7 @@ fn process_spend_limits<'info>(
             ctx.accounts.vault.spend_limit_per_timeframe;
     }
 
+    // Check remaining spend limit
     if ctx.accounts.vault.remaining_spend_limit_per_timeframe < amount_usdc_base_units {
         let error_code = QuartzError::InsufficientTimeframeSpendLimit;
         anchor_lang::prelude::msg!(

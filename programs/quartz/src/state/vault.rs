@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 
 #[account]
 pub struct Vault {
+    // Note: If the owner becomes changeable in the future, need to add has_one contstraints to all ixs
     pub owner: Pubkey,
     pub bump: u8,
 

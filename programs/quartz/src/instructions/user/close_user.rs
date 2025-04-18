@@ -12,7 +12,6 @@ pub struct CloseUser<'info> {
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump = vault.bump,
-        has_one = owner,
         close = init_rent_payer
     )]
     pub vault: Box<Account<'info, Vault>>,

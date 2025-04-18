@@ -40,8 +40,7 @@ pub struct DepositCollateralRepay<'info> {
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
-        bump = vault.bump,
-        has_one = owner
+        bump = vault.bump
     )]
     pub vault: Box<Account<'info, Vault>>,
 
@@ -124,7 +123,7 @@ pub fn deposit_collateral_repay_handler<'info>(
         let withdraw_market_index = u16::from_le_bytes(
             withdraw_instruction.data[8..10]
                 .try_into()
-                .expect("Failed to deserialize market index from withdraw instruction data"),
+                .map_err(|_| QuartzError::FailedToDeserializeMarketIndex)?,
         );
 
         validate_health(&ctx, deposit_market_index, withdraw_market_index)?;
@@ -133,7 +132,9 @@ pub fn deposit_collateral_repay_handler<'info>(
     // Calculate deposit tokens received from Jupiter swap
     let starting_deposit_spl_balance = ctx.accounts.ledger.deposit;
     let current_deposit_spl_balance = ctx.accounts.caller_spl.amount;
-    let amount_deposit_base_units = current_deposit_spl_balance - starting_deposit_spl_balance;
+    let amount_deposit_base_units = current_deposit_spl_balance
+        .checked_sub(starting_deposit_spl_balance)
+        .ok_or(QuartzError::MathOverflow)?;
 
     // Transfer tokens from caller's ATA to vault's ATA
     transfer_checked(
@@ -208,7 +209,7 @@ pub fn deposit_collateral_repay_handler<'info>(
     close_account(cpi_ctx_close)?;
 
     // Log the amount of tokens deposited to the ledger
-    let true_amount_deposited = amount_deposit_base_units - remaining_balance;
+    let true_amount_deposited = amount_deposit_base_units.saturating_sub(remaining_balance);
     ctx.accounts.ledger.deposit = true_amount_deposited;
 
     Ok(())

@@ -20,7 +20,6 @@ pub struct FulfilSpendLimits<'info> {
     #[account(
         mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
-        has_one = owner,
         bump,
     )]
     pub vault: Box<Account<'info, Vault>>,

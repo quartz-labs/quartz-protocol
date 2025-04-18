@@ -1,4 +1,4 @@
-use crate::config::RENT_RECLAIMER;
+use crate::config::{QuartzError, RENT_RECLAIMER};
 use anchor_lang::prelude::*;
 use message_transmitter::{
     cpi::{accounts::ReclaimEventAccountContext, reclaim_event_account},
@@ -9,7 +9,7 @@ use message_transmitter::{
 #[derive(Accounts)]
 pub struct ReclaimBridgeRent<'info> {
     #[account(
-        constraint = rent_reclaimer.key().eq(&RENT_RECLAIMER)
+        constraint = rent_reclaimer.key().eq(&RENT_RECLAIMER) @ QuartzError::InvalidRentReclaimer
     )]
     pub rent_reclaimer: Signer<'info>,
 
