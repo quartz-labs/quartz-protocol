@@ -163,6 +163,9 @@ fn init_vault(
 }
 
 fn init_drift_accounts(ctx: &Context<InitUser>, both_signer_seeds: &[&[&[u8]]]) -> Result<()> {
+    let vault_lamports_before_cpi = ctx.accounts.vault.to_account_info().lamports();
+
+    // Initialize user stats
     let create_user_stats_cpi_context = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         InitializeUserStatsDrift {
@@ -177,6 +180,7 @@ fn init_drift_accounts(ctx: &Context<InitUser>, both_signer_seeds: &[&[&[u8]]]) 
     );
     initialize_user_stats_drift(create_user_stats_cpi_context)?;
 
+    // Initialize user
     let create_user_cpi_context = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         InitializeUserDrift {
@@ -191,6 +195,13 @@ fn init_drift_accounts(ctx: &Context<InitUser>, both_signer_seeds: &[&[&[u8]]]) 
         both_signer_seeds,
     );
     initialize_user_drift(create_user_cpi_context, 0, [0; 32])?;
+
+    // Check vault data to ensure it hasn't been drained by the Drift CPI
+    let vault_lamports_after_cpi = ctx.accounts.vault.to_account_info().lamports();
+    check!(
+        vault_lamports_after_cpi >= vault_lamports_before_cpi,
+        QuartzError::IllegalVaultCPIModification
+    );
 
     Ok(())
 }

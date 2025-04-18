@@ -1,4 +1,8 @@
-use crate::{config::INIT_ACCOUNT_RENT_FEE, state::Vault};
+use crate::{
+    check,
+    config::{QuartzError, INIT_ACCOUNT_RENT_FEE},
+    state::Vault,
+};
 use anchor_lang::prelude::*;
 use drift::{
     cpi::{accounts::DeleteUser, delete_user},
@@ -50,6 +54,8 @@ pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
     let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
     let signer_seeds_vault = &[&seeds_vault[..]];
 
+    let vault_lamports_before_cpi = ctx.accounts.vault.to_account_info().lamports();
+
     let delete_user_cpi_context = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         DeleteUser {
@@ -62,6 +68,14 @@ pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
     );
 
     delete_user(delete_user_cpi_context)?;
+
+    // Check vault data to ensure it hasn't been drained by the Drift CPI
+    ctx.accounts.vault.reload()?;
+    let vault_lamports_after_cpi = ctx.accounts.vault.to_account_info().lamports();
+    check!(
+        vault_lamports_after_cpi >= vault_lamports_before_cpi,
+        QuartzError::IllegalVaultCPIModification
+    );
 
     // Repay user the init rent fee
     let init_rent_payer_bump = ctx.bumps.init_rent_payer;

@@ -59,7 +59,6 @@ pub struct StartSpend<'info> {
     )]
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(mut)]
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
@@ -125,6 +124,8 @@ pub fn start_spend_handler<'info>(
 
     process_spend_limits(&mut ctx, amount_usdc_base_units)?;
 
+    let vault_lamports_before_cpi = ctx.accounts.vault.to_account_info().lamports();
+
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
     let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
@@ -150,6 +151,14 @@ pub fn start_spend_handler<'info>(
 
     // reduce_only = false to allow for collateral position becoming a loan
     drift_withdraw(cpi_ctx, USDC_MARKET_INDEX, amount_usdc_base_units, false)?;
+
+    // Reload vault data to ensure it hasn't been drained by the Drift CPI
+    ctx.accounts.vault.reload()?;
+    let vault_lamports_after_cpi = ctx.accounts.vault.to_account_info().lamports();
+    check!(
+        vault_lamports_after_cpi >= vault_lamports_before_cpi,
+        QuartzError::IllegalVaultCPIModification
+    );
 
     // If taking a fee, transfer cut of amount from mule to spend caller
     if spend_fee {

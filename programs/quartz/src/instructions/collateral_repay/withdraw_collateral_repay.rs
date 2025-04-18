@@ -45,7 +45,6 @@ pub struct WithdrawCollateralRepay<'info> {
     pub owner: UncheckedAccount<'info>,
 
     #[account(
-        mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump = vault.bump
     )]

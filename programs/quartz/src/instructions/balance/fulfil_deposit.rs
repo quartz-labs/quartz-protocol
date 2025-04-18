@@ -14,7 +14,6 @@ use drift::{
 #[derive(Accounts)]
 pub struct FulfilDeposit<'info> {
     #[account(
-        mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump = vault.bump
     )]

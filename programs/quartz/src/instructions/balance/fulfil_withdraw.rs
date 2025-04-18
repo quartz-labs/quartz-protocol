@@ -30,7 +30,6 @@ pub struct FulfilWithdraw<'info> {
     pub caller: Signer<'info>,
 
     #[account(
-        mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump = vault.bump
     )]
@@ -47,7 +46,6 @@ pub struct FulfilWithdraw<'info> {
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Checked in handler
-    #[account(mut)]
     pub owner: UncheckedAccount<'info>,
 
     pub mint: Box<InterfaceAccount<'info, Mint>>,
@@ -163,7 +161,6 @@ fn get_order_data(ctx: &Context<FulfilWithdraw>) -> Result<(u64, u16, bool)> {
     close_time_lock(
         &ctx.accounts.withdraw_order,
         &ctx.accounts.time_lock_rent_payer.to_account_info(),
-        &ctx.accounts.owner.to_account_info(),
     )?;
 
     Ok((amount_base_units, drift_market_index, reduce_only))

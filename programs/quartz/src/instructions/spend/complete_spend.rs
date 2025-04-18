@@ -29,7 +29,6 @@ use token_messenger_minter::{
 #[derive(Accounts)]
 pub struct CompleteSpend<'info> {
     #[account(
-        mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump = vault.bump
     )]
@@ -53,7 +52,7 @@ pub struct CompleteSpend<'info> {
     )]
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(mut)]
+    #[account(mut)] // Mutable for burn
     pub usdc_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// CHECK: Safe once address is correct

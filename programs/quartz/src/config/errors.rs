@@ -72,4 +72,6 @@ pub enum QuartzError {
     FailedToDeserializeVaultBytes,
     #[msg("Invalid vault account")]
     InvalidVaultAccount,
+    #[msg("Vault data was illegally modified during a CPI")]
+    IllegalVaultCPIModification,
 }

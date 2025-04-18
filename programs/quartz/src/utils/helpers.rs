@@ -245,21 +245,22 @@ pub fn validate_time_lock(owner: &Pubkey, time_lock: &TimeLock) -> Result<()> {
 pub fn close_time_lock<'info, T>(
     time_lock: &Account<'info, T>,
     time_lock_rent_payer: &AccountInfo<'info>,
-    owner: &AccountInfo<'info>,
 ) -> Result<()>
 where
     T: TimeLocked + AccountSerialize + AccountDeserialize + Clone,
 {
-    let destination = if time_lock.time_lock().is_owner_payer {
-        owner
+    if time_lock.time_lock().is_owner_payer {
+        check!(
+            time_lock_rent_payer.key().eq(&time_lock.time_lock().owner),
+            QuartzError::InvalidTimeLockRentPayer
+        );
     } else {
         validate_time_lock_rent_payer(time_lock_rent_payer)?;
-        time_lock_rent_payer
     };
 
     // Transfer all rent to payer
     let time_lock_balance = time_lock.to_account_info().lamports();
-    **destination.lamports.borrow_mut() = destination
+    **time_lock_rent_payer.lamports.borrow_mut() = time_lock_rent_payer
         .lamports()
         .checked_add(time_lock_balance)
         .ok_or(QuartzError::MathOverflow)?;

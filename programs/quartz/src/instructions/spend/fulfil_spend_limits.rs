@@ -14,7 +14,6 @@ pub struct FulfilSpendLimits<'info> {
     #[account(mut)]
     pub time_lock_rent_payer: UncheckedAccount<'info>,
 
-    #[account(mut)]
     pub caller: Signer<'info>,
 
     #[account(
@@ -25,7 +24,6 @@ pub struct FulfilSpendLimits<'info> {
     pub vault: Box<Account<'info, Vault>>,
 
     /// CHECK: Any account, once it has a vault (order checked in handler)
-    #[account(mut)]
     pub owner: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -79,7 +77,6 @@ fn get_order_data<'info>(
     close_time_lock(
         &ctx.accounts.spend_limits_order,
         &ctx.accounts.time_lock_rent_payer.to_account_info(),
-        &ctx.accounts.owner.to_account_info(),
     )?;
 
     Ok((
