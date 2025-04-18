@@ -2,8 +2,12 @@ use crate::{
     check,
     config::{QuartzError, INIT_ACCOUNT_RENT_FEE},
     state::Vault,
+    utils::validate_account_fresh,
 };
-use anchor_lang::prelude::*;
+use anchor_lang::{
+    prelude::*,
+    system_program::{self, Transfer},
+};
 use drift::{
     cpi::{accounts::DeleteUser, delete_user},
     program::Drift,
@@ -46,6 +50,13 @@ pub struct CloseUser<'info> {
     pub drift_program: Program<'info, Drift>,
 
     pub system_program: Program<'info, System>,
+
+    /// CHECK: Safe once seeds are correct
+    #[account(
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
+        bump
+    )]
+    pub deposit_address: UncheckedAccount<'info>,
 }
 
 pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
@@ -76,6 +87,30 @@ pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
         vault_lamports_after_cpi >= vault_lamports_before_cpi,
         QuartzError::IllegalVaultCPIModification
     );
+
+    // Close deposit address
+    let deposit_address_bump = ctx.bumps.deposit_address;
+    let vault = &ctx.accounts.vault.key();
+    let seeds_deposit_address = &[
+        b"deposit_address".as_ref(),
+        vault.as_ref(),
+        &[deposit_address_bump],
+    ];
+    let signer_seeds_deposit_address = &[&seeds_deposit_address[..]];
+
+    system_program::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.system_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.deposit_address.to_account_info(),
+                to: ctx.accounts.init_rent_payer.to_account_info(),
+            },
+            signer_seeds_deposit_address,
+        ),
+        ctx.accounts.deposit_address.lamports(),
+    )?;
+
+    validate_account_fresh(&ctx.accounts.deposit_address.to_account_info())?;
 
     // Repay user the init rent fee
     let init_rent_payer_bump = ctx.bumps.init_rent_payer;

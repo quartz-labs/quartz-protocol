@@ -19,29 +19,36 @@ pub struct FulfilDeposit<'info> {
     )]
     pub vault: Box<Account<'info, Vault>>,
 
+    /// CHECK: Safe once seeds are correct
+    #[account(
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
+        bump
+    )]
+    pub deposit_address: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = deposit_address,
+        associated_token::token_program = token_program
+    )]
+    pub deposit_address_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+
     #[account(
         init_if_needed,
-        seeds = [vault.key().as_ref(), mint.key().as_ref()],
+        seeds = [b"deposit_mule:".as_ref(), owner.key().as_ref()],
         bump,
         payer = caller,
         token::mint = mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Any account, once it has a vault
     pub owner: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub caller: Signer<'info>,
-
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = caller,
-        associated_token::token_program = token_program
-    )]
-    pub caller_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -74,11 +81,7 @@ pub fn fulfil_deposit_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
     amount_base_units: u64,
     drift_market_index: u16,
-    reduce_only: bool,
 ) -> Result<()> {
-    // This function currently allows anyone to deposit into any vault
-    // TODO: Allow for a deposit address (eg: vault_spl), and have this function move its balance into Drift
-
     // Validate market index and mint
     let drift_market = get_drift_market(drift_market_index)?;
     check!(
@@ -88,19 +91,25 @@ pub fn fulfil_deposit_handler<'info>(
 
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
-    let signer_seeds = &[&seeds[..]];
+    let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
+    let vault_signer = &[&seeds_vault[..]];
 
-    // Transfer tokens from caller's ATA to vault's ATA
+    let deposit_address_bump = ctx.bumps.deposit_address;
+    let vault = ctx.accounts.vault.key();
+    let seeds_deposit_address = &[b"deposit_address", vault.as_ref(), &[deposit_address_bump]];
+    let deposit_address_signer = &[&seeds_deposit_address[..]];
+
+    // Transfer tokens from deposit address ATA to vault's mule
     transfer_checked(
-        CpiContext::new(
+        CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             TransferChecked {
-                from: ctx.accounts.caller_spl.to_account_info(),
-                to: ctx.accounts.vault_spl.to_account_info(),
-                authority: ctx.accounts.caller.to_account_info(),
+                from: ctx.accounts.deposit_address_spl.to_account_info(),
+                to: ctx.accounts.mule.to_account_info(),
+                authority: ctx.accounts.deposit_address.to_account_info(),
                 mint: ctx.accounts.mint.to_account_info(),
             },
+            deposit_address_signer,
         ),
         amount_base_units,
         ctx.accounts.mint.decimals,
@@ -115,45 +124,25 @@ pub fn fulfil_deposit_handler<'info>(
             user_stats: ctx.accounts.drift_user_stats.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
             spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
-            user_token_account: ctx.accounts.vault_spl.to_account_info(),
+            user_token_account: ctx.accounts.mule.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
-        signer_seeds,
+        vault_signer,
     );
 
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
-    drift_deposit(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
+    drift_deposit(cpi_ctx, drift_market_index, amount_base_units, false)?;
 
-    // Return any remaining balance (in case return_only prevented full deposit)
-    ctx.accounts.vault_spl.reload()?;
-    let remaining_balance = ctx.accounts.vault_spl.amount;
-    if remaining_balance > 0 {
-        transfer_checked(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                TransferChecked {
-                    from: ctx.accounts.vault_spl.to_account_info(),
-                    to: ctx.accounts.caller_spl.to_account_info(),
-                    authority: ctx.accounts.vault.to_account_info(),
-                    mint: ctx.accounts.mint.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            remaining_balance,
-            ctx.accounts.mint.decimals,
-        )?;
-    }
-
-    // Close vault's ATA
+    // Close vault's mule
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         CloseAccount {
-            account: ctx.accounts.vault_spl.to_account_info(),
+            account: ctx.accounts.mule.to_account_info(),
             destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },
-        signer_seeds,
+        vault_signer,
     );
     close_account(cpi_ctx_close)?;
 

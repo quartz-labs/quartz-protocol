@@ -162,6 +162,13 @@ pub fn start_spend_handler<'info>(
 
     // If taking a fee, transfer cut of amount from mule to spend caller
     if spend_fee {
+        // Sanity check on spend fee
+        const MAX_SPEND_FEE_BPS: u64 = 500;
+        check!(
+            SPEND_FEE_BPS <= MAX_SPEND_FEE_BPS,
+            QuartzError::InvalidSpendFeeBPS
+        );
+
         let fee_amount = amount_usdc_base_units
             .checked_mul(SPEND_FEE_BPS)
             .ok_or(QuartzError::MathOverflow)?

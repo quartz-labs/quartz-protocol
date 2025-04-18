@@ -19,6 +19,23 @@ pub fn get_drift_market(market_index: u16) -> Result<&'static DriftMarket> {
         .ok_or(QuartzError::InvalidMarketIndex)?)
 }
 
+pub fn validate_account_fresh(account: &AccountInfo) -> Result<()> {
+    check!(
+        account.owner.key().eq(&system_program::ID),
+        QuartzError::AccountAlreadyInitialized
+    );
+    check!(
+        account.lamports() == 0,
+        QuartzError::AccountAlreadyInitialized
+    );
+    check!(
+        account.data_is_empty(),
+        QuartzError::AccountAlreadyInitialized
+    );
+
+    Ok(())
+}
+
 pub fn normalize_price_exponents(
     price_a: u128,
     exponent_a: i32,
@@ -103,23 +120,6 @@ pub fn evm_address_to_solana(ethereum_address: &str) -> Result<Pubkey> {
     Ok(Pubkey::new_from_array(bytes))
 }
 
-fn validate_time_lock_fresh(time_lock: &AccountInfo) -> Result<()> {
-    check!(
-        time_lock.owner.key().eq(&system_program::ID),
-        QuartzError::TimeLockAlreadyInitialized
-    );
-    check!(
-        time_lock.lamports() == 0,
-        QuartzError::TimeLockAlreadyInitialized
-    );
-    check!(
-        time_lock.data_is_empty(),
-        QuartzError::TimeLockAlreadyInitialized
-    );
-
-    Ok(())
-}
-
 fn validate_time_lock_rent_payer<'info>(
     time_lock_rent_payer: &AccountInfo<'info>,
 ) -> Result<(&'info [u8], u8)> {
@@ -141,7 +141,7 @@ pub fn allocate_time_lock_program_payer<'info>(
     system_program: &Program<'info, System>,
     space: usize,
 ) -> Result<()> {
-    validate_time_lock_fresh(time_lock)?;
+    validate_account_fresh(time_lock)?;
 
     let (time_lock_rent_payer_seeds, bump) = validate_time_lock_rent_payer(time_lock_rent_payer)?;
 
@@ -181,7 +181,7 @@ pub fn allocate_time_lock_owner_payer<'info>(
     system_program: &Program<'info, System>,
     space: usize,
 ) -> Result<()> {
-    validate_time_lock_fresh(time_lock)?;
+    validate_account_fresh(time_lock)?;
 
     let rent = Rent::get()?;
     let required_lamports = rent.minimum_balance(space);
@@ -266,8 +266,9 @@ where
         .ok_or(QuartzError::MathOverflow)?;
     **time_lock.to_account_info().lamports.borrow_mut() = 0;
 
-    // Clear data
+    // Clear data and owner
     time_lock.to_account_info().data.borrow_mut().fill(0);
+    time_lock.to_account_info().owner = &system_program::ID;
 
     Ok(())
 }

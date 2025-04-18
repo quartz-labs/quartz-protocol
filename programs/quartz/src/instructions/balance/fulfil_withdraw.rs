@@ -87,6 +87,21 @@ pub struct FulfilWithdraw<'info> {
         associated_token::token_program = token_program
     )]
     pub destination_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+
+    /// CHECK: Safe once seeds are correct
+    #[account(
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
+        bump
+    )]
+    pub deposit_address: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = deposit_address,
+        associated_token::token_program = token_program
+    )]
+    pub deposit_address_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 }
 
 pub fn fulfil_withdraw_handler<'info>(
@@ -111,28 +126,64 @@ pub fn fulfil_withdraw_handler<'info>(
 
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
-    let vault_seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
-    let vault_signer = &[&vault_seeds[..]];
+    let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
+    let vault_signer = &[&seeds_vault[..]];
 
-    // Drift Withdraw CPI
-    let mut cpi_ctx = CpiContext::new_with_signer(
-        ctx.accounts.drift_program.to_account_info(),
-        DriftWithdraw {
-            state: ctx.accounts.drift_state.to_account_info(),
-            user: ctx.accounts.drift_user.to_account_info(),
-            user_stats: ctx.accounts.drift_user_stats.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
-            spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
-            drift_signer: ctx.accounts.drift_signer.to_account_info(),
-            user_token_account: ctx.accounts.mule.to_account_info(),
-            token_program: ctx.accounts.token_program.to_account_info(),
-        },
-        vault_signer,
-    );
+    let deposit_address_bump = ctx.bumps.deposit_address;
+    let vault = ctx.accounts.vault.key();
+    let seeds_deposit_address = &[b"deposit_address", vault.as_ref(), &[deposit_address_bump]];
+    let deposit_address_signer = &[&seeds_deposit_address[..]];
 
-    cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
+    // First withdraw any idle funds from deposit address
+    let idle_funds = ctx
+        .accounts
+        .deposit_address_spl
+        .amount
+        .min(amount_base_units);
+    if idle_funds > 0 {
+        transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.deposit_address_spl.to_account_info(),
+                    to: ctx.accounts.mule.to_account_info(),
+                    authority: ctx.accounts.deposit_address.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                },
+                deposit_address_signer,
+            ),
+            idle_funds,
+            ctx.accounts.mint.decimals,
+        )?;
+    };
 
-    drift_withdraw(cpi_ctx, drift_market_index, amount_base_units, reduce_only)?;
+    // Withdraw required funds remaining from Drift
+    let required_funds_remaining = amount_base_units.saturating_sub(idle_funds);
+    if required_funds_remaining > 0 {
+        let mut cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.drift_program.to_account_info(),
+            DriftWithdraw {
+                state: ctx.accounts.drift_state.to_account_info(),
+                user: ctx.accounts.drift_user.to_account_info(),
+                user_stats: ctx.accounts.drift_user_stats.to_account_info(),
+                authority: ctx.accounts.vault.to_account_info(),
+                spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
+                drift_signer: ctx.accounts.drift_signer.to_account_info(),
+                user_token_account: ctx.accounts.mule.to_account_info(),
+                token_program: ctx.accounts.token_program.to_account_info(),
+            },
+            vault_signer,
+        );
+
+        cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
+
+        drift_withdraw(
+            cpi_ctx,
+            drift_market_index,
+            required_funds_remaining,
+            reduce_only,
+        )?;
+    }
 
     // Get true amount withdrawn in case reduce_only prevented full withdraw
     ctx.accounts.mule.reload()?;

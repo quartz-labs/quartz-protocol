@@ -67,6 +67,7 @@ pub struct Deposit<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// DEPRECATED: Removed in next version
 pub fn deposit_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, Deposit<'info>>,
     amount_base_units: u64,
@@ -85,7 +86,7 @@ pub fn deposit_handler<'info>(
     let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
     let signer_seeds = &[&seeds[..]];
 
-    // Transfer tokens from owner's ATA to vault's ATA
+    // Transfer tokens from owner's ATA to vault's token account
     transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),

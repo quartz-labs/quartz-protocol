@@ -2,10 +2,11 @@ use crate::{
     check,
     config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE},
     state::Vault,
+    utils::validate_account_fresh,
 };
 use anchor_lang::{
     prelude::*,
-    system_program::{create_account, CreateAccount},
+    system_program::{self, create_account, CreateAccount, Transfer},
     Discriminator,
 };
 use drift::{
@@ -17,8 +18,8 @@ use drift::{
     },
     program::Drift,
 };
+use solana_program::program::invoke;
 use solana_program::system_instruction;
-use solana_program::{program::invoke, system_program};
 
 #[derive(Accounts)]
 pub struct InitUser<'info> {
@@ -58,6 +59,13 @@ pub struct InitUser<'info> {
     pub rent: Sysvar<'info, Rent>,
 
     pub system_program: Program<'info, System>,
+
+    /// CHECK: Safe once seeds are correct
+    #[account(
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
+        bump
+    )]
+    pub deposit_address: UncheckedAccount<'info>,
 }
 
 pub fn init_user_handler(
@@ -76,18 +84,8 @@ pub fn init_user_handler(
     let signer_seeds = &[&init_rent_payer_seeds[..], &seeds_vault[..]];
 
     // Check vault is not already initialized
-    check!(
-        ctx.accounts.vault.owner.key().eq(&system_program::ID),
-        QuartzError::VaultAlreadyInitialized
-    );
-    check!(
-        ctx.accounts.vault.lamports() == 0,
-        QuartzError::VaultAlreadyInitialized
-    );
-    check!(
-        ctx.accounts.vault.data_is_empty(),
-        QuartzError::VaultAlreadyInitialized
-    );
+    validate_account_fresh(&ctx.accounts.vault.to_account_info())?;
+    validate_account_fresh(&ctx.accounts.deposit_address.to_account_info())?;
 
     // Pay init_rent_payer the init fee
     invoke(
@@ -127,8 +125,8 @@ fn init_vault(
 ) -> Result<()> {
     // Init vault space
     let rent = Rent::get()?;
-    let vault_rent_required = rent.minimum_balance(Vault::INIT_SPACE);
-    let space = u64::try_from(Vault::INIT_SPACE).map_err(|_| QuartzError::MathOverflow)?;
+    let rent_required_vault = rent.minimum_balance(Vault::INIT_SPACE);
+    let space_vault = u64::try_from(Vault::INIT_SPACE).map_err(|_| QuartzError::MathOverflow)?;
     create_account(
         CpiContext::new_with_signer(
             ctx.accounts.system_program.to_account_info(),
@@ -138,8 +136,8 @@ fn init_vault(
             },
             signer_seeds,
         ),
-        vault_rent_required,
-        space,
+        rent_required_vault,
+        space_vault,
         &crate::ID,
     )?;
 
@@ -158,6 +156,30 @@ fn init_vault(
     let mut new_account_data = ctx.accounts.vault.try_borrow_mut_data()?;
     new_account_data[..ANCHOR_DISCRIMINATOR].copy_from_slice(&Vault::DISCRIMINATOR);
     new_account_data[ANCHOR_DISCRIMINATOR..].copy_from_slice(&vault_data_vec[..]);
+
+    // Init deposit address
+    const DEPOSIT_ADDRESS_SPACE: usize = 0;
+    let rent_required_deposit_address = rent.minimum_balance(DEPOSIT_ADDRESS_SPACE);
+    system_program::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.system_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.init_rent_payer.to_account_info(),
+                to: ctx.accounts.deposit_address.to_account_info(),
+            },
+            signer_seeds,
+        ),
+        rent_required_deposit_address,
+    )?;
+
+    check!(
+        ctx.accounts
+            .deposit_address
+            .owner
+            .key()
+            .eq(&system_program::ID),
+        QuartzError::InvalidDepositAddressOwner
+    );
 
     Ok(())
 }

@@ -2,8 +2,6 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum QuartzError {
-    #[msg("Vault already initialized")]
-    VaultAlreadyInitialized,
     #[msg("Illegal collateral repay instructions")]
     IllegalCollateralRepayInstructions,
     #[msg("Collateral repay cannot be called as a CPI")]
@@ -62,8 +60,8 @@ pub enum QuartzError {
     InvalidSpendFeeDestination,
     #[msg("Invalid spend caller")]
     InvalidSpendCaller,
-    #[msg("Time lock account is already initialized")]
-    TimeLockAlreadyInitialized,
+    #[msg("Account is already initialized")]
+    AccountAlreadyInitialized,
     #[msg("Invalid rent reclaimer")]
     InvalidRentReclaimer,
     #[msg("Failed to deserialize market index")]
@@ -74,4 +72,8 @@ pub enum QuartzError {
     InvalidVaultAccount,
     #[msg("Vault data was illegally modified during a CPI")]
     IllegalVaultCPIModification,
+    #[msg("Deposit address must be owned by the system program")]
+    InvalidDepositAddressOwner,
+    #[msg("Spend fee BPS is above maximum")]
+    InvalidSpendFeeBPS,
 }
