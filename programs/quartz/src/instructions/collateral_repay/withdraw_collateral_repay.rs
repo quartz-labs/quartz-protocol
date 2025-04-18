@@ -53,13 +53,13 @@ pub struct WithdrawCollateralRepay<'info> {
 
     #[account(
         init_if_needed,
-        seeds = [vault.key().as_ref(), mint.key().as_ref()],
+        seeds = [b"collateral_repay_mule:".as_ref(), owner.key().as_ref(), mint.key().as_ref()],
         bump,
         payer = caller,
         token::mint = mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -133,7 +133,7 @@ pub fn withdraw_collateral_repay_handler<'info>(
 
     // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
     check!(
-        ctx.accounts.vault_spl.amount == 0,
+        ctx.accounts.mule.amount == 0,
         QuartzError::InvalidStartingVaultBalance
     );
 
@@ -154,7 +154,7 @@ pub fn withdraw_collateral_repay_handler<'info>(
             authority: ctx.accounts.vault.to_account_info(),
             spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
             drift_signer: ctx.accounts.drift_signer.to_account_info(),
-            user_token_account: ctx.accounts.vault_spl.to_account_info(),
+            user_token_account: ctx.accounts.mule.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
         signer_seeds_vault,
@@ -171,8 +171,8 @@ pub fn withdraw_collateral_repay_handler<'info>(
     )?;
 
     // Validate values of amount deposited and amount withdrawn are within slippage
-    ctx.accounts.vault_spl.reload()?;
-    let true_amount_withdrawn = ctx.accounts.vault_spl.amount;
+    ctx.accounts.mule.reload()?;
+    let true_amount_withdrawn = ctx.accounts.mule.amount;
     let true_amount_deposited = ctx.accounts.ledger.deposit;
 
     let deposit_instruction =
@@ -180,7 +180,7 @@ pub fn withdraw_collateral_repay_handler<'info>(
     let deposit_market_index = u16::from_le_bytes(
         deposit_instruction.data[8..10]
             .try_into()
-            .expect("Failed to deserialize deposit market index from introspection ix data"),
+            .map_err(|_| QuartzError::FailedToDeserializeMarketIndex)?,
     );
     let deposit_market = get_drift_market(deposit_market_index)?;
 
@@ -192,12 +192,12 @@ pub fn withdraw_collateral_repay_handler<'info>(
         withdraw_market,
     )?;
 
-    // Transfer tokens from vault's ATA to caller's ATA
+    // Transfer tokens from mule to caller's ATA
     transfer_checked(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             TransferChecked {
-                from: ctx.accounts.vault_spl.to_account_info(),
+                from: ctx.accounts.mule.to_account_info(),
                 to: ctx.accounts.caller_spl.to_account_info(),
                 authority: ctx.accounts.vault.to_account_info(),
                 mint: ctx.accounts.mint.to_account_info(),
@@ -208,11 +208,11 @@ pub fn withdraw_collateral_repay_handler<'info>(
         ctx.accounts.mint.decimals,
     )?;
 
-    // Close vault's ATA
+    // Close mule
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         CloseAccount {
-            account: ctx.accounts.vault_spl.to_account_info(),
+            account: ctx.accounts.mule.to_account_info(),
             destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },

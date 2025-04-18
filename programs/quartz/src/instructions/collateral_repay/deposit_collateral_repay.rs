@@ -46,13 +46,13 @@ pub struct DepositCollateralRepay<'info> {
 
     #[account(
         init_if_needed,
-        seeds = [vault.key().as_ref(), mint.key().as_ref()],
+        seeds = [b"collateral_repay_mule:".as_ref(), owner.key().as_ref(), mint.key().as_ref()],
         bump,
         payer = caller,
         token::mint = mint,
         token::authority = vault
     )]
-    pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -138,13 +138,13 @@ pub fn deposit_collateral_repay_handler<'info>(
         .checked_sub(starting_deposit_spl_balance)
         .ok_or(QuartzError::MathOverflow)?;
 
-    // Transfer tokens from caller's ATA to vault's ATA
+    // Transfer tokens from caller's ATA to mule
     transfer_checked(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
             TransferChecked {
                 from: ctx.accounts.caller_spl.to_account_info(),
-                to: ctx.accounts.vault_spl.to_account_info(),
+                to: ctx.accounts.mule.to_account_info(),
                 authority: ctx.accounts.caller.to_account_info(),
                 mint: ctx.accounts.mint.to_account_info(),
             },
@@ -162,7 +162,7 @@ pub fn deposit_collateral_repay_handler<'info>(
             user_stats: ctx.accounts.drift_user_stats.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
             spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
-            user_token_account: ctx.accounts.vault_spl.to_account_info(),
+            user_token_account: ctx.accounts.mule.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
         },
         signer_seeds,
@@ -179,14 +179,14 @@ pub fn deposit_collateral_repay_handler<'info>(
     )?;
 
     // Return any remaining balance (in case reduce_only prevented full deposit)
-    ctx.accounts.vault_spl.reload()?;
-    let remaining_balance = ctx.accounts.vault_spl.amount;
+    ctx.accounts.mule.reload()?;
+    let remaining_balance = ctx.accounts.mule.amount;
     if remaining_balance > 0 {
         transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 TransferChecked {
-                    from: ctx.accounts.vault_spl.to_account_info(),
+                    from: ctx.accounts.mule.to_account_info(),
                     to: ctx.accounts.caller_spl.to_account_info(),
                     authority: ctx.accounts.vault.to_account_info(),
                     mint: ctx.accounts.mint.to_account_info(),
@@ -198,11 +198,11 @@ pub fn deposit_collateral_repay_handler<'info>(
         )?;
     }
 
-    // Close vault's ATA
+    // Close mule
     let cpi_ctx_close = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         CloseAccount {
-            account: ctx.accounts.vault_spl.to_account_info(),
+            account: ctx.accounts.mule.to_account_info(),
             destination: ctx.accounts.caller.to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         },

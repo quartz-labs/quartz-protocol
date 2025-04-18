@@ -60,7 +60,7 @@ pub struct StartCollateralRepay<'info> {
     pub instructions: UncheckedAccount<'info>,
 
     #[account(
-        init_if_needed,
+        init,
         seeds = [b"collateral_repay_ledger".as_ref(), owner.key().as_ref()],
         bump,
         payer = caller,
@@ -76,6 +76,8 @@ pub fn start_collateral_repay_handler<'info>(
         load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
     let current_instruction =
         load_instruction_at_checked(index, &ctx.accounts.instructions.to_account_info())?;
+    let swap_instruction =
+        load_instruction_at_checked(index + 1, &ctx.accounts.instructions.to_account_info())?;
     let deposit_instruction =
         load_instruction_at_checked(index + 2, &ctx.accounts.instructions.to_account_info())?;
     let withdraw_instruction =
@@ -83,6 +85,7 @@ pub fn start_collateral_repay_handler<'info>(
 
     validate_instruction_order(
         &current_instruction,
+        &swap_instruction,
         &deposit_instruction,
         &withdraw_instruction,
     )?;
@@ -105,6 +108,7 @@ pub fn start_collateral_repay_handler<'info>(
 #[inline(never)]
 pub fn validate_instruction_order(
     current_instruction: &Instruction,
+    swap_instruction: &Instruction,
     deposit_instruction: &Instruction,
     withdraw_instruction: &Instruction,
 ) -> Result<()> {
@@ -119,11 +123,13 @@ pub fn validate_instruction_order(
         QuartzError::IllegalCollateralRepayCPI
     );
 
-    // This is the 1st ix
+    // 2nd instruction can be anything, once it's not a Quartz instruction
+    check!(
+        !swap_instruction.program_id.eq(&crate::id()),
+        QuartzError::IllegalCollateralRepayCPI
+    );
 
-    // 2nd instruction can be anything
-
-    // Check deposit_collateral_repay (3rd ix)
+    // 3rd instruction must be deposit_collateral_repay
     check!(
         deposit_instruction.program_id.eq(&crate::id()),
         QuartzError::IllegalCollateralRepayInstructions
@@ -135,7 +141,7 @@ pub fn validate_instruction_order(
         QuartzError::IllegalCollateralRepayInstructions
     );
 
-    // Check withdraw_collateral_repay (4th ix)
+    // 4th instruction must be withdraw_collateral_repay
     check!(
         withdraw_instruction.program_id.eq(&crate::id()),
         QuartzError::IllegalCollateralRepayInstructions
@@ -182,12 +188,12 @@ fn validate_drift_markets(
     let deposit_market_index = u16::from_le_bytes(
         deposit_instruction.data[8..10]
             .try_into()
-            .expect("Failed to serialize deposit market index from introspection ix data"),
+            .map_err(|_| QuartzError::FailedToDeserializeMarketIndex)?,
     );
     let withdraw_market_index = u16::from_le_bytes(
         withdraw_instruction.data[8..10]
             .try_into()
-            .expect("Failed to serialize withdraw market index from introspection ix data"),
+            .map_err(|_| QuartzError::FailedToDeserializeMarketIndex)?,
     );
 
     check!(
