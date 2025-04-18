@@ -21,7 +21,7 @@ use anchor_spl::{
 use drift::{
     cpi::accounts::Withdraw as DriftWithdraw, cpi::withdraw as drift_withdraw, program::Drift,
 };
-use solana_program::instruction::Instruction;
+use solana_program::instruction::{get_stack_height, Instruction};
 
 #[event_cpi]
 #[derive(Accounts)]
@@ -101,9 +101,11 @@ pub fn start_spend_handler<'info>(
 ) -> Result<()> {
     let index: usize =
         load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
+    let current_instruction =
+        load_instruction_at_checked(index, &ctx.accounts.instructions.to_account_info())?;
     let complete_instruction =
         load_instruction_at_checked(index + 1, &ctx.accounts.instructions.to_account_info())?;
-    validate_complete_spend_ix(&ctx, &complete_instruction)?;
+    validate_complete_spend_ix(&ctx, &current_instruction, &complete_instruction)?;
 
     // Manually check mint in handler to avoid Anchor stack overflow
     let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
@@ -177,8 +179,21 @@ pub fn start_spend_handler<'info>(
 
 pub fn validate_complete_spend_ix<'info>(
     ctx: &Context<'_, '_, '_, 'info, StartSpend<'info>>,
+    current_instruction: &Instruction,
     complete_spend: &Instruction,
 ) -> Result<()> {
+    // Ensure we're not in a CPI (to validate introspection)
+    const TOP_LEVEL_STACK_HEIGHT: usize = 1;
+    check!(
+        get_stack_height() == TOP_LEVEL_STACK_HEIGHT,
+        QuartzError::IllegalCollateralRepayCPI
+    );
+    check!(
+        current_instruction.program_id.eq(&crate::id()),
+        QuartzError::IllegalCollateralRepayCPI
+    );
+
+    // Validate instruction
     check!(
         complete_spend.program_id.eq(&crate::id()),
         QuartzError::IllegalSpendInstructions
@@ -191,7 +206,6 @@ pub fn validate_complete_spend_ix<'info>(
     );
 
     // Validate state
-
     let complete_owner = complete_spend.accounts[1].pubkey;
     check!(
         complete_owner.eq(&ctx.accounts.owner.key()),

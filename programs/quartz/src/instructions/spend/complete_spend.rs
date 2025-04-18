@@ -19,7 +19,7 @@ use anchor_spl::{
     token_interface::{close_account, CloseAccount, Mint, TokenAccount, TokenInterface},
 };
 use message_transmitter::program::MessageTransmitter;
-use solana_program::instruction::Instruction;
+use solana_program::instruction::{get_stack_height, Instruction};
 use token_messenger_minter::{
     cpi::{accounts::DepositForBurnContext, deposit_for_burn_with_caller},
     program::TokenMessengerMinter,
@@ -110,9 +110,11 @@ pub fn complete_spend_handler<'info>(
 ) -> Result<()> {
     let index: usize =
         load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
+    let current_instruction =
+        load_instruction_at_checked(index, &ctx.accounts.instructions.to_account_info())?;
     let start_instruction =
         load_instruction_at_checked(index - 1, &ctx.accounts.instructions.to_account_info())?;
-    validate_start_spend_ix(&start_instruction)?;
+    validate_start_spend_ix(&current_instruction, &start_instruction)?;
 
     // Validate USDC mint
     let drift_market = get_drift_market(USDC_MARKET_INDEX)?;
@@ -191,7 +193,22 @@ pub fn complete_spend_handler<'info>(
     Ok(())
 }
 
-pub fn validate_start_spend_ix(start_spend: &Instruction) -> Result<()> {
+pub fn validate_start_spend_ix(
+    current_instruction: &Instruction,
+    start_spend: &Instruction,
+) -> Result<()> {
+    // Ensure we're not in a CPI (to validate introspection)
+    const TOP_LEVEL_STACK_HEIGHT: usize = 1;
+    check!(
+        get_stack_height() == TOP_LEVEL_STACK_HEIGHT,
+        QuartzError::IllegalCollateralRepayCPI
+    );
+    check!(
+        current_instruction.program_id.eq(&crate::id()),
+        QuartzError::IllegalCollateralRepayCPI
+    );
+
+    // Validate start instruction (state validation is done in start_spend)
     check!(
         start_spend.program_id.eq(&crate::id()),
         QuartzError::IllegalSpendInstructions

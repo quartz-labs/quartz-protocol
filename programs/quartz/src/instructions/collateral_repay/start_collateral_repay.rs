@@ -112,7 +112,7 @@ pub fn validate_instruction_order(
     deposit_instruction: &Instruction,
     withdraw_instruction: &Instruction,
 ) -> Result<()> {
-    // Ensure we're not in a CPI
+    // Ensure we're not in a CPI (to validate introspection)
     const TOP_LEVEL_STACK_HEIGHT: usize = 1;
     check!(
         get_stack_height() == TOP_LEVEL_STACK_HEIGHT,
@@ -123,7 +123,7 @@ pub fn validate_instruction_order(
         QuartzError::IllegalCollateralRepayCPI
     );
 
-    // 2nd instruction can be anything, once it's not a Quartz instruction
+    // 2nd instruction can be anything, once it's not a Quartz instruction (prevent reentrancy)
     check!(
         !swap_instruction.program_id.eq(&crate::id()),
         QuartzError::IllegalCollateralRepayCPI
