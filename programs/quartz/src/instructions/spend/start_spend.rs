@@ -238,9 +238,15 @@ fn process_spend_limits<'info>(
     }
 
     // If the timeframe has elapsed, incrememt it and reset spend limit
+    // New reset timestamp = old reset timestamp + the amount of timeframes required to reach a timestamp in the future
     if current_timestamp > ctx.accounts.vault.next_timeframe_reset_timestamp {
-        let overflow = current_timestamp - ctx.accounts.vault.next_timeframe_reset_timestamp;
+        let overflow = current_timestamp
+            .checked_sub(ctx.accounts.vault.next_timeframe_reset_timestamp)
+            .ok_or(QuartzError::MathOverflow)?;
+
+        // Can't divide by 0 as it's checked earlier
         let overflow_in_timeframes = overflow / ctx.accounts.vault.timeframe_in_seconds;
+
         let seconds_to_add = overflow_in_timeframes
             .checked_add(1) // Bring the next reset into the future
             .ok_or(QuartzError::MathOverflow)?

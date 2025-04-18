@@ -6,6 +6,8 @@ pub enum QuartzError {
     VaultAlreadyInitialized,
     #[msg("Illegal collateral repay instructions")]
     IllegalCollateralRepayInstructions,
+    #[msg("Collateral repay cannot be called as a CPI")]
+    IllegalCollateralRepayCPI,
     #[msg("Invalid mint provided")]
     InvalidMint,
     #[msg("Price slippage is above maximum")]

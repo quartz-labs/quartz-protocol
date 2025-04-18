@@ -125,9 +125,11 @@ pub fn withdraw_collateral_repay_handler<'info>(
 
     let index: usize =
         load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
+    let current_instruction =
+        load_instruction_at_checked(index, &ctx.accounts.instructions.to_account_info())?;
     let start_instruction =
         load_instruction_at_checked(index - 3, &ctx.accounts.instructions.to_account_info())?;
-    validate_start_collateral_repay_ix(&start_instruction)?;
+    validate_start_collateral_repay_ix(&current_instruction, &start_instruction)?;
 
     // Paranoia check to ensure the vault is empty before withdrawing for amount calculations
     check!(

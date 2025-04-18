@@ -12,6 +12,7 @@ use anchor_lang::{
     Discriminator,
 };
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use solana_program::instruction::get_stack_height;
 
 #[derive(Accounts)]
 pub struct StartCollateralRepay<'info> {
@@ -73,12 +74,18 @@ pub fn start_collateral_repay_handler<'info>(
 ) -> Result<()> {
     let index: usize =
         load_current_index_checked(&ctx.accounts.instructions.to_account_info())?.into();
+    let current_instruction =
+        load_instruction_at_checked(index, &ctx.accounts.instructions.to_account_info())?;
     let deposit_instruction =
         load_instruction_at_checked(index + 2, &ctx.accounts.instructions.to_account_info())?;
     let withdraw_instruction =
         load_instruction_at_checked(index + 3, &ctx.accounts.instructions.to_account_info())?;
 
-    validate_instruction_order(&deposit_instruction, &withdraw_instruction)?;
+    validate_instruction_order(
+        &current_instruction,
+        &deposit_instruction,
+        &withdraw_instruction,
+    )?;
 
     validate_user_accounts_context(&deposit_instruction, &withdraw_instruction)?;
 
@@ -97,9 +104,21 @@ pub fn start_collateral_repay_handler<'info>(
 
 #[inline(never)]
 pub fn validate_instruction_order(
+    current_instruction: &Instruction,
     deposit_instruction: &Instruction,
     withdraw_instruction: &Instruction,
 ) -> Result<()> {
+    // Ensure we're not in a CPI
+    const TOP_LEVEL_STACK_HEIGHT: usize = 1;
+    check!(
+        get_stack_height() == TOP_LEVEL_STACK_HEIGHT,
+        QuartzError::IllegalCollateralRepayCPI
+    );
+    check!(
+        current_instruction.program_id.eq(&crate::id()),
+        QuartzError::IllegalCollateralRepayCPI
+    );
+
     // This is the 1st ix
 
     // 2nd instruction can be anything

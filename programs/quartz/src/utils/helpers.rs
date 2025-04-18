@@ -7,7 +7,7 @@ use crate::{
 };
 use anchor_lang::{prelude::*, Discriminator};
 use solana_program::{
-    instruction::Instruction,
+    instruction::{get_stack_height, Instruction},
     program::{invoke, invoke_signed},
     system_instruction, system_program,
 };
@@ -57,7 +57,22 @@ pub fn normalize_price_exponents(
     }
 }
 
-pub fn validate_start_collateral_repay_ix(start_collateral_repay: &Instruction) -> Result<()> {
+pub fn validate_start_collateral_repay_ix(
+    current_instruction: &Instruction,
+    start_collateral_repay: &Instruction,
+) -> Result<()> {
+    // Ensure we're not in a CPI
+    const TOP_LEVEL_STACK_HEIGHT: usize = 1;
+    check!(
+        get_stack_height() == TOP_LEVEL_STACK_HEIGHT,
+        QuartzError::IllegalCollateralRepayCPI
+    );
+    check!(
+        current_instruction.program_id.eq(&crate::id()),
+        QuartzError::IllegalCollateralRepayCPI
+    );
+
+    // Ensure start instruction is valid
     check!(
         start_collateral_repay.program_id.eq(&crate::id()),
         QuartzError::IllegalCollateralRepayInstructions
