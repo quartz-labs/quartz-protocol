@@ -1,6 +1,6 @@
 use crate::{
     check,
-    config::{QuartzError, ANCHOR_DISCRIMINATOR, INIT_ACCOUNT_RENT_FEE},
+    config::{QuartzError, ANCHOR_DISCRIMINATOR, DEPOSIT_ADDRESS_SPACE, INIT_ACCOUNT_RENT_FEE},
     state::Vault,
     utils::validate_account_fresh,
 };
@@ -158,7 +158,6 @@ fn init_vault(
     new_account_data[ANCHOR_DISCRIMINATOR..].copy_from_slice(&vault_data_vec[..]);
 
     // Init deposit address
-    const DEPOSIT_ADDRESS_SPACE: usize = 0;
     let rent_required_deposit_address = rent.minimum_balance(DEPOSIT_ADDRESS_SPACE);
     system_program::transfer(
         CpiContext::new_with_signer(

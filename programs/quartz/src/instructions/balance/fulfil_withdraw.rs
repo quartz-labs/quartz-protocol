@@ -259,7 +259,7 @@ fn transfer_spl(
     // Destination SPL is only required if spl_mint is not wSOL
     let destination_spl = match ctx.accounts.destination_spl.as_ref() {
         Some(destination_spl) => destination_spl,
-        None => return Err(QuartzError::InvalidDestinationSplWSOL.into()),
+        None => return Err(QuartzError::MissingDestinationSpl.into()),
     };
 
     // Transfer all tokens from mule to owner_spl

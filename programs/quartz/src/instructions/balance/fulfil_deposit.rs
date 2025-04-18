@@ -1,15 +1,21 @@
-use crate::{check, config::QuartzError, state::Vault, utils::get_drift_market};
+use crate::{
+    check,
+    config::{QuartzError, DEPOSIT_ADDRESS_SPACE, WSOL_MINT},
+    state::Vault,
+    utils::get_drift_market,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{
-        close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
-        TransferChecked,
+        close_account, sync_native, transfer_checked, CloseAccount, Mint, SyncNative, TokenAccount,
+        TokenInterface, TransferChecked,
     },
 };
 use drift::{
     cpi::accounts::Deposit as DriftDeposit, cpi::deposit as drift_deposit, program::Drift,
 };
+use solana_program::{program::invoke_signed, system_instruction};
 
 #[derive(Accounts)]
 pub struct FulfilDeposit<'info> {
@@ -32,7 +38,7 @@ pub struct FulfilDeposit<'info> {
         associated_token::authority = deposit_address,
         associated_token::token_program = token_program
     )]
-    pub deposit_address_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub deposit_address_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
 
     #[account(
         init_if_needed,
@@ -99,21 +105,11 @@ pub fn fulfil_deposit_handler<'info>(
     let deposit_address_signer = &[&seeds_deposit_address[..]];
 
     // Transfer tokens from deposit address ATA to vault's mule
-    let amount_base_units = ctx.accounts.deposit_address_spl.amount;
-    transfer_checked(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            TransferChecked {
-                from: ctx.accounts.deposit_address_spl.to_account_info(),
-                to: ctx.accounts.mule.to_account_info(),
-                authority: ctx.accounts.deposit_address.to_account_info(),
-                mint: ctx.accounts.mint.to_account_info(),
-            },
-            deposit_address_signer,
-        ),
-        amount_base_units,
-        ctx.accounts.mint.decimals,
-    )?;
+    if ctx.accounts.mint.key().eq(&WSOL_MINT) {
+        transfer_deposit_lamports(&ctx, deposit_address_signer)?;
+    } else {
+        transfer_deposit_spl(&ctx, deposit_address_signer)?;
+    }
 
     // Drift Deposit CPI
     let mut cpi_ctx = CpiContext::new_with_signer(
@@ -133,7 +129,8 @@ pub fn fulfil_deposit_handler<'info>(
     cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
 
     // reduce_only = false to allow for a loan position to become a collateral position
-    drift_deposit(cpi_ctx, drift_market_index, amount_base_units, false)?;
+    ctx.accounts.mule.reload()?;
+    drift_deposit(cpi_ctx, drift_market_index, ctx.accounts.mule.amount, false)?;
 
     // Close vault's mule
     let cpi_ctx_close = CpiContext::new_with_signer(
@@ -146,6 +143,73 @@ pub fn fulfil_deposit_handler<'info>(
         vault_signer,
     );
     close_account(cpi_ctx_close)?;
+
+    Ok(())
+}
+
+fn transfer_deposit_spl<'info>(
+    ctx: &Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
+    deposit_address_signer: &[&[&[u8]]],
+) -> Result<()> {
+    let deposit_address_spl = match ctx.accounts.deposit_address_spl.as_ref() {
+        Some(deposit_address_spl) => deposit_address_spl,
+        None => return Err(QuartzError::MissingDepositAddressSpl.into()),
+    };
+    let amount_base_units = deposit_address_spl.amount;
+
+    transfer_checked(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: deposit_address_spl.to_account_info(),
+                to: ctx.accounts.mule.to_account_info(),
+                authority: ctx.accounts.deposit_address.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
+            },
+            deposit_address_signer,
+        ),
+        amount_base_units,
+        ctx.accounts.mint.decimals,
+    )?;
+
+    Ok(())
+}
+
+fn transfer_deposit_lamports<'info>(
+    ctx: &Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
+    deposit_address_signer: &[&[&[u8]]],
+) -> Result<()> {
+    let rent = Rent::get()?;
+    let required_rent = rent.minimum_balance(DEPOSIT_ADDRESS_SPACE);
+    let available_lamports = ctx
+        .accounts
+        .deposit_address
+        .lamports()
+        .checked_sub(required_rent)
+        .ok_or(QuartzError::MathOverflow)?;
+
+    // Transfer lamports from deposit_address to mule
+    invoke_signed(
+        &system_instruction::transfer(
+            ctx.accounts.deposit_address.key,
+            ctx.accounts.mule.to_account_info().key,
+            available_lamports,
+        ),
+        &[
+            ctx.accounts.deposit_address.to_account_info(),
+            ctx.accounts.mule.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+        ],
+        deposit_address_signer,
+    )?;
+
+    // Wrap the lamports
+    sync_native(CpiContext::new(
+        ctx.accounts.token_program.to_account_info(),
+        SyncNative {
+            account: ctx.accounts.mule.to_account_info(),
+        },
+    ))?;
 
     Ok(())
 }

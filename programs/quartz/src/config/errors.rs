@@ -55,7 +55,9 @@ pub enum QuartzError {
     #[msg("Time lock owner does not match")]
     InvalidTimeLockOwner,
     #[msg("destination_spl is required if spl_mint is not wSOL")]
-    InvalidDestinationSplWSOL,
+    MissingDestinationSpl,
+    #[msg("deposit_address_spl is required if spl_mint is not wSOL")]
+    MissingDepositAddressSpl,
     #[msg("Withdraw destination does not match order account")]
     InvalidWithdrawDestination,
     #[msg("Invalid spend fee destination")]

@@ -7,6 +7,7 @@ pub const U1_SIZE: usize = 1;
 pub const U8_SIZE: usize = 1;
 pub const U16_SIZE: usize = 2;
 pub const U64_SIZE: usize = 8;
+pub const DEPOSIT_ADDRESS_SPACE: usize = 0;
 
 pub const INIT_ACCOUNT_RENT_FEE: u64 = 35_000_000; // 0.035 SOL
 
