@@ -1,6 +1,7 @@
 use crate::config::{ANCHOR_DISCRIMINATOR, U64_SIZE};
 use crate::state::time_lock::*;
 
+/// Time locked order for updating the spend limits of a vault
 #[account]
 pub struct SpendLimitsOrder {
     pub time_lock: TimeLock,

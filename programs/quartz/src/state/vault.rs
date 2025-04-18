@@ -1,6 +1,7 @@
 use crate::config::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U64_SIZE, U8_SIZE};
 use anchor_lang::prelude::*;
 
+/// Main user account for the Quartz protocol. Is the authority for DeFi integration accounts, and handles spend limits for the card.
 #[account]
 pub struct Vault {
     // Note: If the owner becomes changeable in the future, need to add has_one contstraints to all ixs

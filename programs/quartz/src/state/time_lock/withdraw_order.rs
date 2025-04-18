@@ -1,6 +1,7 @@
 use crate::config::{ANCHOR_DISCRIMINATOR, PUBKEY_SIZE, U16_SIZE, U1_SIZE, U64_SIZE};
 use crate::state::time_lock::*;
 
+/// Time locked order for withdrawing funds from a vault
 #[account]
 pub struct WithdrawOrder {
     pub time_lock: TimeLock,

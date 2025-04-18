@@ -3,16 +3,12 @@ use crate::{
     config::{QuartzError, ANCHOR_DISCRIMINATOR},
     state::{CollateralRepayLedger, Vault},
 };
-use anchor_lang::{
-    prelude::*,
-    solana_program::{
-        instruction::Instruction,
-        sysvar::instructions::{self, load_current_index_checked, load_instruction_at_checked},
-    },
-    Discriminator,
-};
+use anchor_lang::{prelude::*, solana_program::instruction::Instruction, Discriminator};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use solana_program::instruction::get_stack_height;
+use solana_program::{
+    instruction::get_stack_height,
+    sysvar::instructions::{self, load_current_index_checked, load_instruction_at_checked},
+};
 
 #[derive(Accounts)]
 pub struct StartCollateralRepay<'info> {
