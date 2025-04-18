@@ -209,7 +209,8 @@ fn process_spend_limits<'info>(
 ) -> Result<()> {
     let current_timestamp_signed = Clock::get()?.unix_timestamp;
     check!(current_timestamp_signed > 0, QuartzError::InvalidTimestamp);
-    let current_timestamp = current_timestamp_signed as u64;
+    let current_timestamp =
+        u64::try_from(current_timestamp_signed).map_err(|_| QuartzError::MathOverflow)?;
 
     // Check transaction spend limit and timeframe
     if ctx.accounts.vault.spend_limit_per_transaction < amount_usdc_base_units {

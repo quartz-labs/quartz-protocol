@@ -242,7 +242,8 @@ fn validate_prices<'info>(
         &deposit_feed_id,
     )?;
     check!(deposit_price.price > 0, QuartzError::NegativeOraclePrice);
-    let deposit_lowest_price_raw = (deposit_price.price as u64)
+    let deposit_lowest_price_raw = u64::try_from(deposit_price.price)
+        .map_err(|_| QuartzError::MathOverflow)?
         .checked_sub(deposit_price.conf)
         .ok_or(QuartzError::NegativeOraclePrice)?;
 
@@ -254,16 +255,17 @@ fn validate_prices<'info>(
         &withdraw_feed_id,
     )?;
     check!(withdraw_price.price > 0, QuartzError::NegativeOraclePrice);
-    let withdraw_highest_price_raw = (withdraw_price.price as u64)
+    let withdraw_highest_price_raw = u64::try_from(withdraw_price.price)
+        .map_err(|_| QuartzError::MathOverflow)?
         .checked_add(withdraw_price.conf)
         .ok_or(QuartzError::MathOverflow)?;
 
     // Normalize prices to the same exponents
     let (deposit_lowest_price_normalized, withdraw_highest_price_normalized) =
         normalize_price_exponents(
-            deposit_lowest_price_raw,
+            deposit_lowest_price_raw as u128,
             deposit_price.exponent,
-            withdraw_highest_price_raw,
+            withdraw_highest_price_raw as u128,
             withdraw_price.exponent,
         )?;
 

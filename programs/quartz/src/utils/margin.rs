@@ -78,7 +78,8 @@ fn calculate_quartz_account_health(initial_margin_calculation: MarginCalculation
         return Ok(0);
     }
 
-    let total_collateral_unsigned = total_collateral as u128;
+    let total_collateral_unsigned =
+        u128::try_from(total_collateral).map_err(|_| QuartzError::MathOverflow)?;
 
     if margin_requirement > total_collateral_unsigned {
         return Ok(0);
@@ -96,5 +97,6 @@ fn calculate_quartz_account_health(initial_margin_calculation: MarginCalculation
         .checked_div(total_collateral_unsigned)
         .ok_or(QuartzError::MathOverflow)?;
 
-    Ok(health as u8)
+    let health_u8 = u8::try_from(health).map_err(|_| QuartzError::MathOverflow)?;
+    Ok(health_u8)
 }

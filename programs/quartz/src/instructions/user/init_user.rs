@@ -128,6 +128,7 @@ fn init_vault(
     // Init vault space
     let rent = Rent::get()?;
     let vault_rent_required = rent.minimum_balance(Vault::INIT_SPACE);
+    let space = u64::try_from(Vault::INIT_SPACE).map_err(|_| QuartzError::MathOverflow)?;
     create_account(
         CpiContext::new_with_signer(
             ctx.accounts.system_program.to_account_info(),
@@ -138,7 +139,7 @@ fn init_vault(
             signer_seeds,
         ),
         vault_rent_required,
-        Vault::INIT_SPACE as u64,
+        space,
         &crate::ID,
     )?;
 

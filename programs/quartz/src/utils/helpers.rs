@@ -20,9 +20,9 @@ pub fn get_drift_market(market_index: u16) -> Result<&'static DriftMarket> {
 }
 
 pub fn normalize_price_exponents(
-    price_a: u64,
+    price_a: u128,
     exponent_a: i32,
-    price_b: u64,
+    price_b: u128,
     exponent_b: i32,
 ) -> Result<(u128, u128)> {
     // Used to compare two oracle prices
@@ -39,21 +39,21 @@ pub fn normalize_price_exponents(
     );
 
     if exponent_difference == 0 {
-        return Ok((price_a as u128, price_b as u128));
+        return Ok((price_a, price_b));
     }
 
     if exponent_difference > 0 {
         // a > b
-        let amount_b_normalized = (price_b as u128)
+        let amount_b_normalized = (price_b)
             .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
             .ok_or(QuartzError::MathOverflow)?;
-        Ok((price_a as u128, amount_b_normalized))
+        Ok((price_a, amount_b_normalized))
     } else {
         // b > a
-        let amount_a_normalized = (price_a as u128)
+        let amount_a_normalized = (price_a)
             .checked_mul(10_u128.pow(exponent_difference.unsigned_abs()))
             .ok_or(QuartzError::MathOverflow)?;
-        Ok((amount_a_normalized, price_b as u128))
+        Ok((amount_a_normalized, price_b))
     }
 }
 
@@ -151,7 +151,11 @@ pub fn allocate_time_lock_program_payer<'info>(
         signer_seeds,
     )?;
 
-    allocate_time_lock(time_lock, system_program, space)?;
+    allocate_time_lock(
+        time_lock,
+        system_program,
+        u64::try_from(space).map_err(|_| QuartzError::MathOverflow)?,
+    )?;
 
     Ok(())
 }
@@ -176,7 +180,11 @@ pub fn allocate_time_lock_owner_payer<'info>(
         ],
     )?;
 
-    allocate_time_lock(time_lock, system_program, space)?;
+    allocate_time_lock(
+        time_lock,
+        system_program,
+        u64::try_from(space).map_err(|_| QuartzError::MathOverflow)?,
+    )?;
 
     Ok(())
 }
@@ -184,11 +192,11 @@ pub fn allocate_time_lock_owner_payer<'info>(
 fn allocate_time_lock<'info>(
     time_lock: &Signer<'info>,
     system_program: &Program<'info, System>,
-    space: usize,
+    space: u64,
 ) -> Result<()> {
     // Allocate data
     invoke(
-        &system_instruction::allocate(&time_lock.key(), space as u64),
+        &system_instruction::allocate(&time_lock.key(), space),
         &[
             time_lock.to_account_info(),
             system_program.to_account_info(),
