@@ -37,7 +37,7 @@ pub struct FulfilWithdraw<'info> {
 
     #[account(
         init_if_needed,
-        seeds = [b"withdraw_mule".as_ref(), owner.key().as_ref()],
+        seeds = [b"withdraw_mule".as_ref(), owner.key().as_ref(), mint.key().as_ref()],
         bump,
         payer = caller,
         token::mint = mint,
@@ -90,7 +90,7 @@ pub struct FulfilWithdraw<'info> {
 
     /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(
-        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
+        seeds = [b"deposit_address:".as_ref(), vault.key().as_ref()],
         bump
     )]
     pub deposit_address: UncheckedAccount<'info>,
@@ -131,7 +131,7 @@ pub fn fulfil_withdraw_handler<'info>(
 
     let deposit_address_bump = ctx.bumps.deposit_address;
     let vault = ctx.accounts.vault.key();
-    let seeds_deposit_address = &[b"deposit_address", vault.as_ref(), &[deposit_address_bump]];
+    let seeds_deposit_address = &[b"deposit_address:", vault.as_ref(), &[deposit_address_bump]];
     let deposit_address_signer = &[&seeds_deposit_address[..]];
 
     // First withdraw any idle funds from deposit address

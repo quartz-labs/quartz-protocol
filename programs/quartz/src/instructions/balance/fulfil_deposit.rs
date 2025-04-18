@@ -27,7 +27,7 @@ pub struct FulfilDeposit<'info> {
 
     /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(
-        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
+        seeds = [b"deposit_address:".as_ref(), vault.key().as_ref()],
         bump
     )]
     pub deposit_address: UncheckedAccount<'info>,
@@ -42,7 +42,7 @@ pub struct FulfilDeposit<'info> {
 
     #[account(
         init_if_needed,
-        seeds = [b"deposit_mule:".as_ref(), owner.key().as_ref()],
+        seeds = [b"deposit_mule:".as_ref(), owner.key().as_ref(), mint.key().as_ref()],
         bump,
         payer = caller,
         token::mint = mint,
@@ -101,7 +101,7 @@ pub fn fulfil_deposit_handler<'info>(
 
     let deposit_address_bump = ctx.bumps.deposit_address;
     let vault = ctx.accounts.vault.key();
-    let seeds_deposit_address = &[b"deposit_address", vault.as_ref(), &[deposit_address_bump]];
+    let seeds_deposit_address = &[b"deposit_address:", vault.as_ref(), &[deposit_address_bump]];
     let deposit_address_signer = &[&seeds_deposit_address[..]];
 
     // Transfer tokens from deposit address ATA to vault's mule
