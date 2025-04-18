@@ -51,7 +51,7 @@ pub struct StartSpend<'info> {
     pub spend_fee_destination: UncheckedAccount<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         seeds = [b"spend_mule".as_ref(), owner.key().as_ref()],
         bump,
         payer = spend_caller,
@@ -237,10 +237,12 @@ fn process_spend_limits<'info>(
     }
 
     // If the timeframe has elapsed, incrememt it and reset spend limit
-    if current_timestamp >= ctx.accounts.vault.next_timeframe_reset_timestamp {
+    if current_timestamp > ctx.accounts.vault.next_timeframe_reset_timestamp {
         let overflow = current_timestamp - ctx.accounts.vault.next_timeframe_reset_timestamp;
         let overflow_in_timeframes = overflow / ctx.accounts.vault.timeframe_in_seconds;
-        let seconds_to_add = (overflow_in_timeframes + 1) // Bring the next reset into the future
+        let seconds_to_add = overflow_in_timeframes
+            .checked_add(1) // Bring the next reset into the future
+            .ok_or(QuartzError::MathOverflow)?
             .checked_mul(ctx.accounts.vault.timeframe_in_seconds)
             .ok_or(QuartzError::MathOverflow)?;
 

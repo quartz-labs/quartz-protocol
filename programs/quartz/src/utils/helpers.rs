@@ -9,7 +9,7 @@ use anchor_lang::{prelude::*, Discriminator};
 use solana_program::{
     instruction::Instruction,
     program::{invoke, invoke_signed},
-    system_instruction,
+    system_instruction, system_program,
 };
 
 pub fn get_drift_market(market_index: u16) -> Result<&'static DriftMarket> {
@@ -89,6 +89,10 @@ pub fn evm_address_to_solana(ethereum_address: &str) -> Result<Pubkey> {
 }
 
 fn validate_time_lock_fresh(time_lock: &AccountInfo) -> Result<()> {
+    check!(
+        time_lock.owner.key().eq(&system_program::ID),
+        QuartzError::TimeLockAlreadyInitialized
+    );
     check!(
         time_lock.lamports() == 0,
         QuartzError::TimeLockAlreadyInitialized

@@ -35,7 +35,7 @@ pub struct WithdrawCollateralRepay<'info> {
 
     #[account(
         mut,
-        associated_token::mint = spl_mint,
+        associated_token::mint = mint,
         associated_token::authority = caller,
         associated_token::token_program = token_program
     )]
@@ -53,16 +53,16 @@ pub struct WithdrawCollateralRepay<'info> {
     pub vault: Box<Account<'info, Vault>>,
 
     #[account(
-        init,
-        seeds = [vault.key().as_ref(), spl_mint.key().as_ref()],
+        init_if_needed,
+        seeds = [vault.key().as_ref(), mint.key().as_ref()],
         bump,
         payer = caller,
-        token::mint = spl_mint,
+        token::mint = mint,
         token::authority = vault
     )]
     pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mut,
@@ -120,7 +120,7 @@ pub fn withdraw_collateral_repay_handler<'info>(
 
     let withdraw_market = get_drift_market(withdraw_market_index)?;
     check!(
-        &ctx.accounts.spl_mint.key().eq(&withdraw_market.mint),
+        &ctx.accounts.mint.key().eq(&withdraw_market.mint),
         QuartzError::InvalidMint
     );
 
@@ -197,12 +197,12 @@ pub fn withdraw_collateral_repay_handler<'info>(
                 from: ctx.accounts.vault_spl.to_account_info(),
                 to: ctx.accounts.caller_spl.to_account_info(),
                 authority: ctx.accounts.vault.to_account_info(),
-                mint: ctx.accounts.spl_mint.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
             },
             signer_seeds_vault,
         ),
         true_amount_withdrawn,
-        ctx.accounts.spl_mint.decimals,
+        ctx.accounts.mint.decimals,
     )?;
 
     // Close vault's ATA

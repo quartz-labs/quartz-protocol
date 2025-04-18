@@ -60,7 +60,7 @@ pub struct StartCollateralRepay<'info> {
     pub instructions: UncheckedAccount<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         seeds = [b"collateral_repay_ledger".as_ref(), owner.key().as_ref()],
         bump,
         payer = caller,
@@ -88,6 +88,7 @@ pub fn start_collateral_repay_handler<'info>(
     validate_spl_context(&ctx, &deposit_instruction, &withdraw_instruction)?;
 
     // Log deposit and withdraw starting balances (ensures deposit & withdraw use exact amounts in swap)
+    // It's fine if this account already exists, as we're overwriting the values
     let ledger = &mut ctx.accounts.ledger;
     ledger.deposit = ctx.accounts.caller_deposit_spl.amount;
     ledger.withdraw = ctx.accounts.caller_withdraw_spl.amount;

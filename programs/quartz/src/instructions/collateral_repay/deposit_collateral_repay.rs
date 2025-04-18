@@ -28,7 +28,7 @@ pub struct DepositCollateralRepay<'info> {
 
     #[account(
         mut,
-        associated_token::mint = spl_mint,
+        associated_token::mint = mint,
         associated_token::authority = caller,
         associated_token::token_program = token_program
     )]
@@ -46,16 +46,16 @@ pub struct DepositCollateralRepay<'info> {
     pub vault: Box<Account<'info, Vault>>,
 
     #[account(
-        init,
-        seeds = [vault.key().as_ref(), spl_mint.key().as_ref()],
+        init_if_needed,
+        seeds = [vault.key().as_ref(), mint.key().as_ref()],
         bump,
         payer = caller,
-        token::mint = spl_mint,
+        token::mint = mint,
         token::authority = vault
     )]
     pub vault_spl: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     // Checked here as required for health calculations
     #[account(
@@ -107,7 +107,7 @@ pub fn deposit_collateral_repay_handler<'info>(
 
     let deposit_market = get_drift_market(deposit_market_index)?;
     check!(
-        &ctx.accounts.spl_mint.key().eq(&deposit_market.mint),
+        &ctx.accounts.mint.key().eq(&deposit_market.mint),
         QuartzError::InvalidMint
     );
 
@@ -143,11 +143,11 @@ pub fn deposit_collateral_repay_handler<'info>(
                 from: ctx.accounts.caller_spl.to_account_info(),
                 to: ctx.accounts.vault_spl.to_account_info(),
                 authority: ctx.accounts.caller.to_account_info(),
-                mint: ctx.accounts.spl_mint.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
             },
         ),
         amount_deposit_base_units,
-        ctx.accounts.spl_mint.decimals,
+        ctx.accounts.mint.decimals,
     )?;
 
     // Drift Deposit CPI
@@ -186,12 +186,12 @@ pub fn deposit_collateral_repay_handler<'info>(
                     from: ctx.accounts.vault_spl.to_account_info(),
                     to: ctx.accounts.caller_spl.to_account_info(),
                     authority: ctx.accounts.vault.to_account_info(),
-                    mint: ctx.accounts.spl_mint.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
                 },
                 signer_seeds,
             ),
             remaining_balance,
-            ctx.accounts.spl_mint.decimals,
+            ctx.accounts.mint.decimals,
         )?;
     }
 

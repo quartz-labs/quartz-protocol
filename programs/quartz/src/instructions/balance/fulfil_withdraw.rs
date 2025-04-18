@@ -38,11 +38,11 @@ pub struct FulfilWithdraw<'info> {
     pub vault: Box<Account<'info, Vault>>,
 
     #[account(
-        init,
+        init_if_needed,
         seeds = [b"withdraw_mule".as_ref(), owner.key().as_ref()],
         bump,
         payer = caller,
-        token::mint = spl_mint,
+        token::mint = mint,
         token::authority = vault
     )]
     pub mule: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -51,7 +51,7 @@ pub struct FulfilWithdraw<'info> {
     #[account(mut)]
     pub owner: UncheckedAccount<'info>,
 
-    pub spl_mint: Box<InterfaceAccount<'info, Mint>>,
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// CHECK: This account is passed through to the Drift CPI, which performs the security checks
     #[account(mut)]
@@ -85,7 +85,7 @@ pub struct FulfilWithdraw<'info> {
 
     #[account(
         mut,
-        associated_token::mint = spl_mint,
+        associated_token::mint = mint,
         associated_token::authority = destination,
         associated_token::token_program = token_program
     )]
@@ -108,7 +108,7 @@ pub fn fulfil_withdraw_handler<'info>(
     // Validate market index and mint
     let drift_market = get_drift_market(drift_market_index)?;
     check!(
-        &ctx.accounts.spl_mint.key().eq(&drift_market.mint),
+        &ctx.accounts.mint.key().eq(&drift_market.mint),
         QuartzError::InvalidMint
     );
 
@@ -141,7 +141,7 @@ pub fn fulfil_withdraw_handler<'info>(
     ctx.accounts.mule.reload()?;
     let true_amount_withdrawn = ctx.accounts.mule.amount;
 
-    if ctx.accounts.spl_mint.key().eq(&WSOL_MINT) {
+    if ctx.accounts.mint.key().eq(&WSOL_MINT) {
         // wSOL must be unwrapped and sent as raw SOL, as the destination likely won't have a wSOL ATA
         transfer_lamports(&ctx, vault_signer, true_amount_withdrawn)?;
     } else {
@@ -223,12 +223,12 @@ fn transfer_spl(
                 from: ctx.accounts.mule.to_account_info(),
                 to: destination_spl.to_account_info(),
                 authority: ctx.accounts.vault.to_account_info(),
-                mint: ctx.accounts.spl_mint.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
             },
             vault_signer,
         ),
         true_amount_withdrawn,
-        ctx.accounts.spl_mint.decimals,
+        ctx.accounts.mint.decimals,
     )?;
 
     // Close mule

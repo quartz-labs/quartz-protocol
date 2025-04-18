@@ -17,8 +17,8 @@ use drift::{
     },
     program::Drift,
 };
-use solana_program::program::invoke;
 use solana_program::system_instruction;
+use solana_program::{program::invoke, system_program};
 
 #[derive(Accounts)]
 pub struct InitUser<'info> {
@@ -76,6 +76,10 @@ pub fn init_user_handler(
     let signer_seeds = &[&init_rent_payer_seeds[..], &seeds_vault[..]];
 
     // Check vault is not already initialized
+    check!(
+        ctx.accounts.vault.owner.key().eq(&system_program::ID),
+        QuartzError::VaultAlreadyInitialized
+    );
     check!(
         ctx.accounts.vault.lamports() == 0,
         QuartzError::VaultAlreadyInitialized
