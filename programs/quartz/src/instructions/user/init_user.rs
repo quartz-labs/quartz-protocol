@@ -62,7 +62,7 @@ pub struct InitUser<'info> {
 
     /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(
-        seeds = [b"deposit_address:".as_ref(), vault.key().as_ref()],
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
         bump
     )]
     pub deposit_address: UncheckedAccount<'info>,

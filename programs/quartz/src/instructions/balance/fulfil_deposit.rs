@@ -27,11 +27,12 @@ pub struct FulfilDeposit<'info> {
 
     /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(
-        seeds = [b"deposit_address:".as_ref(), vault.key().as_ref()],
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
         bump
     )]
     pub deposit_address: UncheckedAccount<'info>,
 
+    /// Option because SOL in the deposit_address will be regular lamports, not wSOL
     #[account(
         mut,
         associated_token::mint = mint,
@@ -42,7 +43,7 @@ pub struct FulfilDeposit<'info> {
 
     #[account(
         init_if_needed,
-        seeds = [b"deposit_mule:".as_ref(), owner.key().as_ref(), mint.key().as_ref()],
+        seeds = [b"deposit_mule".as_ref(), owner.key().as_ref(), mint.key().as_ref()],
         bump,
         payer = caller,
         token::mint = mint,
@@ -83,6 +84,7 @@ pub struct FulfilDeposit<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Anyone can deposit into a Quartz account by sending funds to the deposit_address of that account, this function permissionlessly moves funds from that address into Drift
 pub fn fulfil_deposit_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
     drift_market_index: u16,
@@ -94,14 +96,9 @@ pub fn fulfil_deposit_handler<'info>(
         QuartzError::InvalidMint
     );
 
-    let vault_bump = ctx.accounts.vault.bump;
-    let owner = ctx.accounts.owner.key();
-    let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
-    let vault_signer = &[&seeds_vault[..]];
-
     let deposit_address_bump = ctx.bumps.deposit_address;
     let vault = ctx.accounts.vault.key();
-    let seeds_deposit_address = &[b"deposit_address:", vault.as_ref(), &[deposit_address_bump]];
+    let seeds_deposit_address = &[b"deposit_address", vault.as_ref(), &[deposit_address_bump]];
     let deposit_address_signer = &[&seeds_deposit_address[..]];
 
     // Transfer tokens from deposit address ATA to vault's mule
@@ -112,6 +109,11 @@ pub fn fulfil_deposit_handler<'info>(
     }
 
     // Drift Deposit CPI
+    let vault_bump = ctx.accounts.vault.bump;
+    let owner = ctx.accounts.owner.key();
+    let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
+    let vault_signer = &[&seeds_vault[..]];
+
     let mut cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.drift_program.to_account_info(),
         DriftDeposit {

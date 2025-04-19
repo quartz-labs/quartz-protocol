@@ -237,7 +237,7 @@ pub fn validate_time_lock(owner: &Pubkey, time_lock: &TimeLock) -> Result<()> {
 
     let current_slot = Clock::get()?.slot;
     check!(
-        time_lock.release_slot <= current_slot,
+        time_lock.release_slot < current_slot,
         QuartzError::TimeLockNotReleased
     );
 

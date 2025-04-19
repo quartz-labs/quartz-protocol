@@ -91,6 +91,21 @@ pub struct StartSpend<'info> {
     pub instructions: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
+
+    /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
+    #[account(
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
+        bump
+    )]
+    pub deposit_address: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = deposit_address,
+        associated_token::token_program = token_program
+    )]
+    pub deposit_address_usdc: Box<InterfaceAccount<'info, TokenAccount>>,
 }
 
 pub fn start_spend_handler<'info>(
@@ -124,41 +139,73 @@ pub fn start_spend_handler<'info>(
 
     process_spend_limits(&mut ctx, amount_usdc_base_units)?;
 
-    let vault_lamports_before_cpi = ctx.accounts.vault.to_account_info().lamports();
+    // First withdraw any idle funds from deposit address
+    let idle_funds = ctx
+        .accounts
+        .deposit_address_usdc
+        .amount
+        .min(amount_usdc_base_units);
 
-    let vault_bump = ctx.accounts.vault.bump;
-    let owner = ctx.accounts.owner.key();
-    let seeds = &[b"vault", owner.as_ref(), &[vault_bump]];
-    let signer_seeds = &[&seeds[..]];
+    if idle_funds > 0 {
+        let deposit_address_bump = ctx.bumps.deposit_address;
+        let vault = ctx.accounts.vault.key();
+        let seeds_deposit_address = &[b"deposit_address", vault.as_ref(), &[deposit_address_bump]];
+        let deposit_address_signer = &[&seeds_deposit_address[..]];
 
-    // Use Drift Withdraw CPI to transfer USDC to spend mule
-    let mut cpi_ctx = CpiContext::new_with_signer(
-        ctx.accounts.drift_program.to_account_info(),
-        DriftWithdraw {
-            state: ctx.accounts.drift_state.to_account_info(),
-            user: ctx.accounts.drift_user.to_account_info(),
-            user_stats: ctx.accounts.drift_user_stats.to_account_info(),
-            authority: ctx.accounts.vault.to_account_info(),
-            spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
-            drift_signer: ctx.accounts.drift_signer.to_account_info(),
-            user_token_account: ctx.accounts.mule.to_account_info(),
-            token_program: ctx.accounts.token_program.to_account_info(),
-        },
-        signer_seeds,
-    );
+        transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.deposit_address_usdc.to_account_info(),
+                    to: ctx.accounts.mule.to_account_info(),
+                    authority: ctx.accounts.deposit_address.to_account_info(),
+                    mint: ctx.accounts.usdc_mint.to_account_info(),
+                },
+                deposit_address_signer,
+            ),
+            idle_funds,
+            ctx.accounts.usdc_mint.decimals,
+        )?;
+    };
 
-    cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
+    // Withdraw required funds remaining from Drift
+    let required_funds_remaining = amount_usdc_base_units.saturating_sub(idle_funds);
+    if required_funds_remaining > 0 {
+        let vault_bump = ctx.accounts.vault.bump;
+        let owner = ctx.accounts.owner.key();
+        let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
+        let vault_signer = &[&seeds_vault[..]];
 
-    // reduce_only = false to allow for collateral position becoming a loan
-    drift_withdraw(cpi_ctx, USDC_MARKET_INDEX, amount_usdc_base_units, false)?;
+        let vault_lamports_before_cpi = ctx.accounts.vault.to_account_info().lamports();
 
-    // Reload vault data to ensure it hasn't been drained by the Drift CPI
-    ctx.accounts.vault.reload()?;
-    let vault_lamports_after_cpi = ctx.accounts.vault.to_account_info().lamports();
-    check!(
-        vault_lamports_after_cpi >= vault_lamports_before_cpi,
-        QuartzError::IllegalVaultCPIModification
-    );
+        let mut cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.drift_program.to_account_info(),
+            DriftWithdraw {
+                state: ctx.accounts.drift_state.to_account_info(),
+                user: ctx.accounts.drift_user.to_account_info(),
+                user_stats: ctx.accounts.drift_user_stats.to_account_info(),
+                authority: ctx.accounts.vault.to_account_info(),
+                spot_market_vault: ctx.accounts.spot_market_vault.to_account_info(),
+                drift_signer: ctx.accounts.drift_signer.to_account_info(),
+                user_token_account: ctx.accounts.mule.to_account_info(),
+                token_program: ctx.accounts.token_program.to_account_info(),
+            },
+            vault_signer,
+        );
+
+        cpi_ctx.remaining_accounts = ctx.remaining_accounts.to_vec();
+
+        // reduce_only = false to allow for collateral position becoming a loan
+        drift_withdraw(cpi_ctx, USDC_MARKET_INDEX, required_funds_remaining, false)?;
+
+        // Reload vault data to ensure it hasn't been drained by the Drift CPI
+        ctx.accounts.vault.reload()?;
+        let vault_lamports_after_cpi = ctx.accounts.vault.to_account_info().lamports();
+        check!(
+            vault_lamports_after_cpi >= vault_lamports_before_cpi,
+            QuartzError::IllegalVaultCPIModification
+        );
+    }
 
     // If taking a fee, transfer cut of amount from mule to spend caller
     if spend_fee {

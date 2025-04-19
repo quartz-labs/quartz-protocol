@@ -45,7 +45,7 @@ pub struct DepositCollateralRepay<'info> {
 
     #[account(
         init_if_needed,
-        seeds = [b"collateral_repay_mule:".as_ref(), owner.key().as_ref(), mint.key().as_ref()],
+        seeds = [b"collateral_repay_mule".as_ref(), owner.key().as_ref(), mint.key().as_ref()],
         bump,
         payer = caller,
         token::mint = mint,

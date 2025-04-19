@@ -1,6 +1,6 @@
 use crate::{
     check,
-    config::{QuartzError, WSOL_MINT},
+    config::{QuartzError, DEPOSIT_ADDRESS_SPACE, WSOL_MINT},
     state::{Vault, WithdrawOrder},
     utils::{close_time_lock, get_drift_market, validate_time_lock},
 };
@@ -15,7 +15,10 @@ use anchor_spl::{
 use drift::{
     cpi::accounts::Withdraw as DriftWithdraw, cpi::withdraw as drift_withdraw, program::Drift,
 };
-use solana_program::{program::invoke, system_instruction};
+use solana_program::{
+    program::{invoke, invoke_signed},
+    system_instruction,
+};
 
 #[derive(Accounts)]
 pub struct FulfilWithdraw<'info> {
@@ -90,18 +93,19 @@ pub struct FulfilWithdraw<'info> {
 
     /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(
-        seeds = [b"deposit_address:".as_ref(), vault.key().as_ref()],
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
         bump
     )]
     pub deposit_address: UncheckedAccount<'info>,
 
+    /// Option because SOL in the deposit_address will be regular lamports, not wSOL
     #[account(
         mut,
         associated_token::mint = mint,
         associated_token::authority = deposit_address,
         associated_token::token_program = token_program
     )]
-    pub deposit_address_spl: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub deposit_address_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
 }
 
 pub fn fulfil_withdraw_handler<'info>(
@@ -123,43 +127,18 @@ pub fn fulfil_withdraw_handler<'info>(
         &ctx.accounts.mint.key().eq(&drift_market.mint),
         QuartzError::InvalidMint
     );
+    let is_sol = ctx.accounts.mint.key().eq(&WSOL_MINT);
 
+    // First withdraw any idle funds from deposit address
+    let funds_to_withdraw_after_idle = transfer_idle_funds(&ctx, is_sol, amount_base_units)?;
+
+    // Withdraw required funds remaining from Drift
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();
     let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
     let vault_signer = &[&seeds_vault[..]];
 
-    let deposit_address_bump = ctx.bumps.deposit_address;
-    let vault = ctx.accounts.vault.key();
-    let seeds_deposit_address = &[b"deposit_address:", vault.as_ref(), &[deposit_address_bump]];
-    let deposit_address_signer = &[&seeds_deposit_address[..]];
-
-    // First withdraw any idle funds from deposit address
-    let idle_funds = ctx
-        .accounts
-        .deposit_address_spl
-        .amount
-        .min(amount_base_units);
-    if idle_funds > 0 {
-        transfer_checked(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                TransferChecked {
-                    from: ctx.accounts.deposit_address_spl.to_account_info(),
-                    to: ctx.accounts.mule.to_account_info(),
-                    authority: ctx.accounts.deposit_address.to_account_info(),
-                    mint: ctx.accounts.mint.to_account_info(),
-                },
-                deposit_address_signer,
-            ),
-            idle_funds,
-            ctx.accounts.mint.decimals,
-        )?;
-    };
-
-    // Withdraw required funds remaining from Drift
-    let required_funds_remaining = amount_base_units.saturating_sub(idle_funds);
-    if required_funds_remaining > 0 {
+    if funds_to_withdraw_after_idle > 0 {
         let mut cpi_ctx = CpiContext::new_with_signer(
             ctx.accounts.drift_program.to_account_info(),
             DriftWithdraw {
@@ -180,20 +159,20 @@ pub fn fulfil_withdraw_handler<'info>(
         drift_withdraw(
             cpi_ctx,
             drift_market_index,
-            required_funds_remaining,
+            funds_to_withdraw_after_idle,
             reduce_only,
         )?;
     }
 
-    // Get true amount withdrawn in case reduce_only prevented full withdraw
+    // Get mule's balance in case reduce_only prevented full withdraw, or if idle funds were SOL and sent direct to destination (skipping mule)
     ctx.accounts.mule.reload()?;
-    let true_amount_withdrawn = ctx.accounts.mule.amount;
+    let amount_to_withdraw = ctx.accounts.mule.amount;
 
-    if ctx.accounts.mint.key().eq(&WSOL_MINT) {
+    if is_sol {
         // wSOL must be unwrapped and sent as raw SOL, as the destination likely won't have a wSOL ATA
-        transfer_lamports(&ctx, vault_signer, true_amount_withdrawn)?;
+        withdraw_unwrap_lamports(&ctx, vault_signer, amount_to_withdraw)?;
     } else {
-        transfer_spl(&ctx, vault_signer, true_amount_withdrawn)?;
+        withdraw_spl(&ctx, vault_signer, amount_to_withdraw)?;
     }
 
     Ok(())
@@ -217,7 +196,76 @@ fn get_order_data(ctx: &Context<FulfilWithdraw>) -> Result<(u64, u16, bool)> {
     Ok((amount_base_units, drift_market_index, reduce_only))
 }
 
-fn transfer_lamports(
+fn transfer_idle_funds(
+    ctx: &Context<FulfilWithdraw>,
+    is_sol: bool,
+    amount_base_units: u64,
+) -> Result<u64> {
+    let deposit_address_bump = ctx.bumps.deposit_address;
+    let vault = ctx.accounts.vault.key();
+    let seeds_deposit_address = &[b"deposit_address", vault.as_ref(), &[deposit_address_bump]];
+    let deposit_address_signer = &[&seeds_deposit_address[..]];
+
+    let idle_funds = if is_sol {
+        let rent = Rent::get()?;
+        let required_rent = rent.minimum_balance(DEPOSIT_ADDRESS_SPACE);
+        let idle_funds = ctx
+            .accounts
+            .deposit_address
+            .lamports()
+            .checked_sub(required_rent)
+            .ok_or(QuartzError::MathOverflow)?;
+
+        if idle_funds > 0 {
+            invoke_signed(
+                &system_instruction::transfer(
+                    ctx.accounts.deposit_address.key,
+                    ctx.accounts.destination.key,
+                    idle_funds,
+                ),
+                &[
+                    ctx.accounts.deposit_address.to_account_info(),
+                    ctx.accounts.destination.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+                deposit_address_signer,
+            )?;
+        }
+
+        idle_funds
+    } else {
+        let deposit_address_spl = match ctx.accounts.deposit_address_spl.as_ref() {
+            Some(deposit_address_spl) => deposit_address_spl,
+            None => return Err(QuartzError::MissingDepositAddressSpl.into()),
+        };
+
+        let idle_funds = deposit_address_spl.amount.min(amount_base_units);
+
+        if idle_funds > 0 {
+            transfer_checked(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    TransferChecked {
+                        from: deposit_address_spl.to_account_info(),
+                        to: ctx.accounts.mule.to_account_info(),
+                        authority: ctx.accounts.deposit_address.to_account_info(),
+                        mint: ctx.accounts.mint.to_account_info(),
+                    },
+                    deposit_address_signer,
+                ),
+                idle_funds,
+                ctx.accounts.mint.decimals,
+            )?;
+        };
+
+        idle_funds
+    };
+
+    let required_funds_remaining = amount_base_units.saturating_sub(idle_funds);
+    Ok(required_funds_remaining)
+}
+
+fn withdraw_unwrap_lamports(
     ctx: &Context<FulfilWithdraw>,
     vault_signer: &[&[&[u8]]],
     true_amount_withdrawn: u64,
@@ -251,7 +299,7 @@ fn transfer_lamports(
     Ok(())
 }
 
-fn transfer_spl(
+fn withdraw_spl(
     ctx: &Context<FulfilWithdraw>,
     vault_signer: &[&[&[u8]]],
     true_amount_withdrawn: u64,

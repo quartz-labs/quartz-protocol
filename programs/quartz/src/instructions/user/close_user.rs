@@ -53,7 +53,7 @@ pub struct CloseUser<'info> {
 
     /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(
-        seeds = [b"deposit_address:".as_ref(), vault.key().as_ref()],
+        seeds = [b"deposit_address".as_ref(), vault.key().as_ref()],
         bump
     )]
     pub deposit_address: UncheckedAccount<'info>,
@@ -92,7 +92,7 @@ pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
     let deposit_address_bump = ctx.bumps.deposit_address;
     let vault = &ctx.accounts.vault.key();
     let seeds_deposit_address = &[
-        b"deposit_address:".as_ref(),
+        b"deposit_address".as_ref(),
         vault.as_ref(),
         &[deposit_address_bump],
     ];
