@@ -108,6 +108,7 @@ pub struct WithdrawCollateralRepay<'info> {
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
 }
 
+/// Third collateral repay instruction, takes place after deposit. Withdraws collateral from Drift, checking values of deposit and withdraw are below slippage.
 pub fn withdraw_collateral_repay_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, WithdrawCollateralRepay<'info>>,
     withdraw_market_index: u16,

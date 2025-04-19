@@ -108,6 +108,7 @@ pub struct FulfilWithdraw<'info> {
     pub deposit_address_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
 }
 
+/// Permissionless function to fulfil a withdraw order, sending funds to the order's destination
 pub fn fulfil_withdraw_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilWithdraw<'info>>,
 ) -> Result<()> {
@@ -164,7 +165,7 @@ pub fn fulfil_withdraw_handler<'info>(
         )?;
     }
 
-    // Get mule's balance in case reduce_only prevented full withdraw, or if idle funds were SOL and sent direct to destination (skipping mule)
+    // Send mule's balance to destination
     ctx.accounts.mule.reload()?;
     let amount_to_withdraw = ctx.accounts.mule.amount;
 
@@ -209,19 +210,20 @@ fn transfer_idle_funds(
     let idle_funds = if is_sol {
         let rent = Rent::get()?;
         let required_rent = rent.minimum_balance(DEPOSIT_ADDRESS_SPACE);
-        let idle_funds = ctx
+        let available_lamports = ctx
             .accounts
             .deposit_address
             .lamports()
             .checked_sub(required_rent)
             .ok_or(QuartzError::MathOverflow)?;
+        let idle_lamports = available_lamports.min(amount_base_units);
 
-        if idle_funds > 0 {
+        if idle_lamports > 0 {
             invoke_signed(
                 &system_instruction::transfer(
                     ctx.accounts.deposit_address.key,
                     ctx.accounts.destination.key,
-                    idle_funds,
+                    idle_lamports,
                 ),
                 &[
                     ctx.accounts.deposit_address.to_account_info(),
@@ -232,16 +234,16 @@ fn transfer_idle_funds(
             )?;
         }
 
-        idle_funds
+        idle_lamports
     } else {
         let deposit_address_spl = match ctx.accounts.deposit_address_spl.as_ref() {
             Some(deposit_address_spl) => deposit_address_spl,
             None => return Err(QuartzError::MissingDepositAddressSpl.into()),
         };
 
-        let idle_funds = deposit_address_spl.amount.min(amount_base_units);
+        let idle_tokens = deposit_address_spl.amount.min(amount_base_units);
 
-        if idle_funds > 0 {
+        if idle_tokens > 0 {
             transfer_checked(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
@@ -253,12 +255,12 @@ fn transfer_idle_funds(
                     },
                     deposit_address_signer,
                 ),
-                idle_funds,
+                idle_tokens,
                 ctx.accounts.mint.decimals,
             )?;
         };
 
-        idle_funds
+        idle_tokens
     };
 
     let required_funds_remaining = amount_base_units.saturating_sub(idle_funds);
@@ -268,7 +270,7 @@ fn transfer_idle_funds(
 fn withdraw_unwrap_lamports(
     ctx: &Context<FulfilWithdraw>,
     vault_signer: &[&[&[u8]]],
-    true_amount_withdrawn: u64,
+    amount_withdrawn: u64,
 ) -> Result<()> {
     // Close wSOL mule, unwrapping all SOL to caller
     let cpi_ctx_close = CpiContext::new_with_signer(
@@ -287,7 +289,7 @@ fn withdraw_unwrap_lamports(
         &system_instruction::transfer(
             ctx.accounts.caller.key,
             ctx.accounts.destination.key,
-            true_amount_withdrawn,
+            amount_withdrawn,
         ),
         &[
             ctx.accounts.caller.to_account_info(),
@@ -302,7 +304,7 @@ fn withdraw_unwrap_lamports(
 fn withdraw_spl(
     ctx: &Context<FulfilWithdraw>,
     vault_signer: &[&[&[u8]]],
-    true_amount_withdrawn: u64,
+    amount_withdrawn: u64,
 ) -> Result<()> {
     // Destination SPL is only required if spl_mint is not wSOL
     let destination_spl = match ctx.accounts.destination_spl.as_ref() {
@@ -322,7 +324,7 @@ fn withdraw_spl(
             },
             vault_signer,
         ),
-        true_amount_withdrawn,
+        amount_withdrawn,
         ctx.accounts.mint.decimals,
     )?;
 

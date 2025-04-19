@@ -59,6 +59,7 @@ pub struct CloseUser<'info> {
     pub deposit_address: UncheckedAccount<'info>,
 }
 
+/// Close user account, repaying init fee
 pub fn close_user_handler(ctx: Context<CloseUser>) -> Result<()> {
     let vault_bump = ctx.accounts.vault.bump;
     let owner = ctx.accounts.owner.key();

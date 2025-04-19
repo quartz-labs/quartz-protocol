@@ -28,15 +28,13 @@ pub struct InitiateWithdraw<'info> {
     pub destination: UncheckedAccount<'info>,
 }
 
+/// Creates a time locked withdraw order, which can be fulfilled permissionlessly once the time lock has expired. Time locks prevent edge cases of double spend with the Quartz card.
 pub fn initiate_withdraw_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, InitiateWithdraw<'info>>,
     amount_base_units: u64,
     drift_market_index: u16,
     reduce_only: bool,
 ) -> Result<()> {
-    // Creates a time locked withdraw order, which can be fulfilled permissionlessly once the time lock has expired
-    // Time locks prevent edge cases of double spend with the Quartz card
-
     let is_owner_payer = ctx
         .accounts
         .time_lock_rent_payer

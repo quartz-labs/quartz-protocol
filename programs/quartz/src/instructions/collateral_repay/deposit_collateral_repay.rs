@@ -94,6 +94,7 @@ pub struct DepositCollateralRepay<'info> {
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
 }
 
+/// Second collateral repay instruction, takes place after swap. Deposits tokens into Drift to pay off loan.
 pub fn deposit_collateral_repay_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, DepositCollateralRepay<'info>>,
     deposit_market_index: u16,

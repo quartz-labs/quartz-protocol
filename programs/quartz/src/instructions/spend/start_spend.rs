@@ -108,6 +108,7 @@ pub struct StartSpend<'info> {
     pub deposit_address_usdc: Box<InterfaceAccount<'info, TokenAccount>>,
 }
 
+/// First spend instruction (split due to stack size limits), withdraws from vault and updates spend limits
 pub fn start_spend_handler<'info>(
     mut ctx: Context<'_, '_, '_, 'info, StartSpend<'info>>,
     amount_usdc_base_units: u64,

@@ -68,6 +68,7 @@ pub struct InitUser<'info> {
     pub deposit_address: UncheckedAccount<'info>,
 }
 
+/// Create a user account. Initializes vault, deposit address, and Drift accounts. User only pays 0.035 SOL, the rest is covered by the init_rent_payer.
 pub fn init_user_handler(
     ctx: Context<InitUser>,
     spend_limit_per_transaction: u64,

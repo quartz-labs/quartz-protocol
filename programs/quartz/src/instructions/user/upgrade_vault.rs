@@ -28,6 +28,7 @@ pub struct UpgradeVault<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Upgrade vault to new version (adding spend limit data)
 pub fn upgrade_vault_handler(
     ctx: Context<UpgradeVault>,
     spend_limit_per_transaction: u64,

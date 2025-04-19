@@ -32,7 +32,7 @@ pub struct ReclaimBridgeRent<'info> {
     pub cctp_message_transmitter: Program<'info, MessageTransmitter>,
 }
 
-/// Reclaims account rent one the bridge for spend is fully processed
+/// Reclaims account rent once the bridge for spend is fully processed
 pub fn reclaim_bridge_rent_handler(
     ctx: Context<ReclaimBridgeRent>,
     attestation: Vec<u8>,

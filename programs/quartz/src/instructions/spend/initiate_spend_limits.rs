@@ -25,6 +25,7 @@ pub struct InitiateSpendLimits<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Creates a time locked spend limits order, which can be fulfilled permissionlessly once the time lock has expired. Time locks prevent edge cases of double spend with the Quartz card.
 pub fn initiate_spend_limits_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, InitiateSpendLimits<'info>>,
     spend_limit_per_transaction: u64,

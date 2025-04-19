@@ -96,12 +96,12 @@ pub fn fulfil_deposit_handler<'info>(
         QuartzError::InvalidMint
     );
 
+    // Transfer tokens from deposit address ATA to vault's mule
     let deposit_address_bump = ctx.bumps.deposit_address;
     let vault = ctx.accounts.vault.key();
     let seeds_deposit_address = &[b"deposit_address", vault.as_ref(), &[deposit_address_bump]];
     let deposit_address_signer = &[&seeds_deposit_address[..]];
 
-    // Transfer tokens from deposit address ATA to vault's mule
     if ctx.accounts.mint.key().eq(&WSOL_MINT) {
         transfer_deposit_lamports(&ctx, deposit_address_signer)?;
     } else {

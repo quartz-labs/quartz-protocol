@@ -104,6 +104,7 @@ pub struct CompleteSpend<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Second spend instruction (split due to stack size limits), bridges USDC to card partner's address on Base
 pub fn complete_spend_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, CompleteSpend<'info>>,
 ) -> Result<()> {

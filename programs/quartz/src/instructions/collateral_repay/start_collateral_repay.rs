@@ -64,6 +64,7 @@ pub struct StartCollateralRepay<'info> {
     pub ledger: Box<Account<'info, CollateralRepayLedger>>,
 }
 
+/// First collateral repay instruction, takes place before swap. Validates order and state of instructions, and logs starting balances
 pub fn start_collateral_repay_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, StartCollateralRepay<'info>>,
 ) -> Result<()> {

@@ -29,6 +29,7 @@ pub struct FulfilSpendLimits<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Permissionless function to fulfil a spend limits order, updating the vault's spend limits
 pub fn fulfil_spend_limits_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilSpendLimits<'info>>,
 ) -> Result<()> {
