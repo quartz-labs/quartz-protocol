@@ -80,4 +80,6 @@ pub enum QuartzError {
     InvalidDepositAddressOwner,
     #[msg("Spend fee BPS is above maximum")]
     InvalidSpendFeeBPS,
+    #[msg("Invalid USDC ATA for deposit address")]
+    InvalidDepositAddressUSDC,
 }

@@ -6,6 +6,10 @@ use crate::{
     state::{TimeLock, TimeLocked},
 };
 use anchor_lang::{prelude::*, Discriminator};
+use anchor_spl::{
+    associated_token::get_associated_token_address_with_program_id,
+    token_interface::{TokenAccount, TokenInterface},
+};
 use solana_program::{
     instruction::{get_stack_height, Instruction},
     program::{invoke, invoke_signed},
@@ -273,4 +277,41 @@ where
     time_lock.to_account_info().owner = &system_program::ID;
 
     Ok(())
+}
+
+/// Validates associated token account. Returns Ok(Token Account) if it exists, Ok(None) if it doesn't exist, and Err if the seeds are invalid
+pub fn validate_ata<'info>(
+    ata: &AccountInfo<'info>,
+    authority: &AccountInfo<'info>,
+    mint: &AccountInfo<'info>,
+    token_program: &Interface<'info, TokenInterface>,
+) -> Result<Option<TokenAccount>> {
+    // Validate seeds
+    let expected_address = get_associated_token_address_with_program_id(
+        &authority.key(),
+        &mint.key(),
+        &token_program.key(),
+    );
+
+    check!(
+        ata.key().eq(&expected_address),
+        QuartzError::InvalidDepositAddressUSDC
+    );
+
+    // Check if exists
+    if !ata.owner.eq(&token_program.key()) {
+        return Ok(None);
+    }
+
+    if ata.data_is_empty() {
+        return Ok(None);
+    }
+
+    let rent = Rent::get()?;
+    if !rent.is_exempt(ata.lamports(), ata.data_len()) {
+        return Ok(None);
+    }
+
+    let account = TokenAccount::try_deserialize(&mut &ata.data.borrow()[..])?;
+    Ok(Some(account))
 }

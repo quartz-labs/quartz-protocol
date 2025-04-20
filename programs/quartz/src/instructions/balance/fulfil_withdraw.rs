@@ -2,7 +2,7 @@ use crate::{
     check,
     config::{QuartzError, DEPOSIT_ADDRESS_SPACE, WSOL_MINT},
     state::{Vault, WithdrawOrder},
-    utils::{close_time_lock, get_drift_market, validate_time_lock},
+    utils::{close_time_lock, get_drift_market, validate_ata, validate_time_lock},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -99,14 +99,9 @@ pub struct FulfilWithdraw<'info> {
     )]
     pub deposit_address: UncheckedAccount<'info>,
 
-    /// Option because SOL in the deposit_address will be regular lamports, not wSOL
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = deposit_address,
-        associated_token::token_program = token_program
-    )]
-    pub deposit_address_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    /// CHECK: Checked in handler as the account doesn't need to exist
+    #[account(mut)]
+    pub deposit_address_spl: UncheckedAccount<'info>,
 }
 
 /// Permissionless function to fulfil a withdraw order, sending funds to the order's destination
@@ -237,19 +232,24 @@ fn transfer_idle_funds(
 
         idle_lamports
     } else {
-        let deposit_address_spl = match ctx.accounts.deposit_address_spl.as_ref() {
-            Some(deposit_address_spl) => deposit_address_spl,
-            None => return Err(QuartzError::MissingDepositAddressSpl.into()),
-        };
+        let deposit_address_spl = validate_ata(
+            &ctx.accounts.deposit_address_spl.to_account_info(),
+            &ctx.accounts.deposit_address.to_account_info(),
+            &ctx.accounts.mint.to_account_info(),
+            &ctx.accounts.token_program,
+        )?;
 
-        let idle_tokens = deposit_address_spl.amount.min(amount_base_units);
+        let idle_tokens = match deposit_address_spl {
+            Some(deposit_address_spl) => deposit_address_spl.amount.min(amount_base_units),
+            None => 0,
+        };
 
         if idle_tokens > 0 {
             transfer_checked(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     TransferChecked {
-                        from: deposit_address_spl.to_account_info(),
+                        from: ctx.accounts.deposit_address_spl.to_account_info(),
                         to: ctx.accounts.mule.to_account_info(),
                         authority: ctx.accounts.deposit_address.to_account_info(),
                         mint: ctx.accounts.mint.to_account_info(),

@@ -5,7 +5,7 @@ use crate::{
         USDC_MARKET_INDEX,
     },
     state::Vault,
-    utils::get_drift_market,
+    utils::{get_drift_market, validate_ata},
 };
 use anchor_lang::{
     prelude::*,
@@ -99,13 +99,9 @@ pub struct StartSpend<'info> {
     )]
     pub deposit_address: UncheckedAccount<'info>,
 
-    #[account(
-        mut,
-        associated_token::mint = usdc_mint,
-        associated_token::authority = deposit_address,
-        associated_token::token_program = token_program
-    )]
-    pub deposit_address_usdc: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: Checked in handler as the account doesn't need to exist
+    #[account(mut)]
+    pub deposit_address_usdc: UncheckedAccount<'info>,
 }
 
 /// First spend instruction (split due to stack size limits), withdraws from vault and updates spend limits
@@ -140,12 +136,18 @@ pub fn start_spend_handler<'info>(
 
     process_spend_limits(&mut ctx, amount_usdc_base_units)?;
 
+    let deposit_address_usdc = validate_ata(
+        &ctx.accounts.deposit_address_usdc.to_account_info(),
+        &ctx.accounts.deposit_address.to_account_info(),
+        &ctx.accounts.usdc_mint.to_account_info(),
+        &ctx.accounts.token_program,
+    )?;
+
     // First withdraw any idle funds from deposit address
-    let idle_funds = ctx
-        .accounts
-        .deposit_address_usdc
-        .amount
-        .min(amount_usdc_base_units);
+    let idle_funds = match deposit_address_usdc {
+        Some(account) => account.amount.min(amount_usdc_base_units),
+        None => 0, // If ATA doesn't exist, there are no idle funds
+    };
 
     if idle_funds > 0 {
         let deposit_address_bump = ctx.bumps.deposit_address;
