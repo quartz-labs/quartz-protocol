@@ -76,15 +76,6 @@ pub mod quartz {
 
     // Balance
 
-    pub fn deposit<'info>(
-        ctx: Context<'_, '_, '_, 'info, Deposit<'info>>,
-        amount_base_units: u64,
-        drift_market_index: u16,
-        reduce_only: bool,
-    ) -> Result<()> {
-        deposit_handler(ctx, amount_base_units, drift_market_index, reduce_only)
-    }
-
     pub fn fulfil_deposit<'info>(
         ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
         drift_market_index: u16,
