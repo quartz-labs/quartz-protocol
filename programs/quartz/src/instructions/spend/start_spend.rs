@@ -172,13 +172,13 @@ pub fn start_spend_handler<'info>(
     };
 
     // Withdraw required funds remaining from Drift
+    let vault_bump = ctx.accounts.vault.bump;
+    let owner = ctx.accounts.owner.key();
+    let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
+    let vault_signer = &[&seeds_vault[..]];
+
     let required_funds_remaining = amount_usdc_base_units.saturating_sub(idle_funds);
     if required_funds_remaining > 0 {
-        let vault_bump = ctx.accounts.vault.bump;
-        let owner = ctx.accounts.owner.key();
-        let seeds_vault = &[b"vault", owner.as_ref(), &[vault_bump]];
-        let vault_signer = &[&seeds_vault[..]];
-
         let vault_lamports_before_cpi = ctx.accounts.vault.to_account_info().lamports();
 
         let mut cpi_ctx = CpiContext::new_with_signer(
@@ -226,14 +226,15 @@ pub fn start_spend_handler<'info>(
             .ok_or(QuartzError::MathOverflow)?;
 
         transfer_checked(
-            CpiContext::new(
+            CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 TransferChecked {
                     from: ctx.accounts.mule.to_account_info(),
                     to: ctx.accounts.spend_fee_destination.to_account_info(),
-                    authority: ctx.accounts.spend_caller.to_account_info(),
+                    authority: ctx.accounts.vault.to_account_info(),
                     mint: ctx.accounts.usdc_mint.to_account_info(),
                 },
+                vault_signer,
             ),
             fee_amount,
             ctx.accounts.usdc_mint.decimals,
