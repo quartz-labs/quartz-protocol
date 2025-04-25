@@ -90,7 +90,7 @@ pub struct FulfilWithdraw<'info> {
         associated_token::authority = destination,
         associated_token::token_program = token_program
     )]
-    pub destination_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    pub destination_spl: Option<Box<InterfaceAccount<'info, TokenAccount>>>, // TODO: Change validation to be in the handler
 
     /// CHECK: Safe once seeds are correct, deposit address is the pubkey anyone can send tokens to for deposits
     #[account(

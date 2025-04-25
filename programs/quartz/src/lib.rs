@@ -98,6 +98,12 @@ pub mod quartz {
         fulfil_withdraw_handler(ctx)
     }
 
+    pub fn cancel_withdraw<'info>(
+        ctx: Context<'_, '_, '_, 'info, CancelWithdraw<'info>>,
+    ) -> Result<()> {
+        cancel_withdraw_handler(ctx)
+    }
+
     // Spend
 
     pub fn start_spend<'info>(
