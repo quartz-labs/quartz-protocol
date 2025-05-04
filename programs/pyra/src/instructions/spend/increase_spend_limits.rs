@@ -11,8 +11,6 @@ pub struct IncreaseSpendLimits<'info> {
     pub vault: Box<Account<'info, Vault>>,
 
     pub owner: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
 }
 
 /// Instantly updates the user's spend limits. No time lock is required if the spend limit is increasing.
@@ -26,6 +24,15 @@ pub fn increase_spend_limits_handler<'info>(
     let starting_remaining_spend_limit_per_timeframe =
         ctx.accounts.vault.remaining_spend_limit_per_timeframe;
     let starting_spend_limit_per_transaction = ctx.accounts.vault.spend_limit_per_transaction;
+
+    msg!(
+        "starting spend_limit_per_transaction: {}",
+        ctx.accounts.vault.spend_limit_per_transaction
+    );
+    msg!(
+        "starting spend_limit_per_timeframe: {}",
+        ctx.accounts.vault.spend_limit_per_timeframe
+    );
 
     let spend_limit_per_timeframe_already_used = ctx
         .accounts
@@ -55,6 +62,24 @@ pub fn increase_spend_limits_handler<'info>(
     ctx.accounts.vault.spend_limit_per_timeframe = spend_limit_per_timeframe;
     ctx.accounts.vault.timeframe_in_seconds = timeframe_in_seconds;
     ctx.accounts.vault.next_timeframe_reset_timestamp = next_timeframe_reset_timestamp;
+
+    msg!(
+        "spend_limit_per_transaction input: {}",
+        spend_limit_per_transaction
+    );
+    msg!(
+        "spend_limit_per_timeframe input: {}",
+        spend_limit_per_timeframe
+    );
+
+    msg!(
+        "spend_limit_per_transaction output: {}",
+        ctx.accounts.vault.spend_limit_per_transaction
+    );
+    msg!(
+        "spend_limit_per_timeframe output: {}",
+        ctx.accounts.vault.spend_limit_per_timeframe
+    );
 
     Ok(())
 }

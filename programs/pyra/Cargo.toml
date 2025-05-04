@@ -1,6 +1,6 @@
 [package]
 name = "pyra"
-version = "0.12.0"
+version = "0.12.1"
 description = "Pyra"
 edition = "2021"
 
