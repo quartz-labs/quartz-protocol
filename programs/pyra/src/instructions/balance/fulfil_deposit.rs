@@ -85,7 +85,7 @@ pub struct FulfilDeposit<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Anyone can deposit into a Quartz account by sending funds to the deposit_address of that account, this function permissionlessly moves funds from that address into Drift
+/// Anyone can deposit into a Pyra account by sending funds to the deposit_address of that account, this function permissionlessly moves funds from that address into Drift
 pub fn fulfil_deposit_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, FulfilDeposit<'info>>,
     drift_market_index: u16,

@@ -9,3 +9,6 @@ pub use cancel_withdraw::*;
 
 mod fulfil_deposit;
 pub use fulfil_deposit::*;
+
+mod rescue_deposit;
+pub use rescue_deposit::*;

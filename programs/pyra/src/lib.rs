@@ -83,6 +83,12 @@ pub mod pyra {
         fulfil_deposit_handler(ctx, drift_market_index)
     }
 
+    pub fn rescue_deposit<'info>(
+        ctx: Context<'_, '_, '_, 'info, RescueDeposit<'info>>,
+    ) -> Result<()> {
+        rescue_deposit_handler(ctx)
+    }
+
     pub fn initiate_withdraw<'info>(
         ctx: Context<'_, '_, '_, 'info, InitiateWithdraw<'info>>,
         amount_base_units: u64,
@@ -140,6 +146,22 @@ pub mod pyra {
         ctx: Context<'_, '_, 'info, 'info, FulfilSpendLimits<'info>>,
     ) -> Result<()> {
         fulfil_spend_limits_handler(ctx)
+    }
+
+    pub fn increase_spend_limits<'info>(
+        ctx: Context<'_, '_, 'info, 'info, IncreaseSpendLimits<'info>>,
+        spend_limit_per_transaction: u64,
+        spend_limit_per_timeframe: u64,
+        timeframe_in_seconds: u64,
+        next_timeframe_reset_timestamp: u64,
+    ) -> Result<()> {
+        increase_spend_limits_handler(
+            ctx,
+            spend_limit_per_transaction,
+            spend_limit_per_timeframe,
+            timeframe_in_seconds,
+            next_timeframe_reset_timestamp,
+        )
     }
 
     // Collateral Repay

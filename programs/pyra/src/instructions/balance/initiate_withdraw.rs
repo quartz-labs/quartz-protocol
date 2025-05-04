@@ -28,7 +28,7 @@ pub struct InitiateWithdraw<'info> {
     pub destination: UncheckedAccount<'info>,
 }
 
-/// Creates a time locked withdraw order, which can be fulfilled permissionlessly once the time lock has expired. Time locks prevent edge cases of double spend with the Quartz card.
+/// Creates a time locked withdraw order, which can be fulfilled permissionlessly once the time lock has expired. Time locks prevent edge cases of double spend with the Pyra card.
 pub fn initiate_withdraw_handler<'info>(
     ctx: Context<'_, '_, '_, 'info, InitiateWithdraw<'info>>,
     amount_base_units: u64,
