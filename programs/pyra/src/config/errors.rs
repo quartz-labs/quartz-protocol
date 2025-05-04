@@ -82,4 +82,10 @@ pub enum PyraError {
     InvalidSpendFeeBPS,
     #[msg("Invalid USDC ATA for deposit address")]
     InvalidDepositAddressUSDC,
+    #[msg("Spend limit cannot be decreased in the increase spend limits instruction")]
+    IllegalSpendLimitDecrease,
+    #[msg("Cannot rescue a supported token")]
+    IllegalRescueSupportedToken,
+    #[msg("Cannot transfer zero tokens")]
+    TransferZero,
 }
