@@ -4,14 +4,13 @@ use anchor_lang::prelude::*;
 #[derive(Accounts)]
 pub struct IncreaseSpendLimits<'info> {
     #[account(
+        mut,
         seeds = [b"vault".as_ref(), owner.key().as_ref()],
         bump = vault.bump
     )]
     pub vault: Box<Account<'info, Vault>>,
 
     pub owner: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
 }
 
 /// Instantly updates the user's spend limits. No time lock is required if the spend limit is increasing.
